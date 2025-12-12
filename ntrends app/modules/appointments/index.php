@@ -1,8 +1,6 @@
 <?php
 session_start();
 if (!isset($_SESSION['user_id'])) {
-    // If not logged in, go to login page
-    // Note: Use ../../login.php because modules are 2 levels deep
     header("Location: ../../login.php");
     exit;
 }
@@ -20,17 +18,21 @@ if (!isset($_SESSION['user_id'])) {
         .dash-card { border-radius: 15px; color: white; overflow: hidden; position: relative; }
         .bg-teal { background: linear-gradient(135deg, #20c997, #0cb285); }
         .bg-pink { background: linear-gradient(135deg, #e83e8c, #d63384); }
+        .bg-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
         .card-icon-bg { position: absolute; right: -20px; bottom: -20px; font-size: 8rem; opacity: 0.2; transform: rotate(-15deg); }
         
+        /* Search Styles */
         #customerSearchSection { display: none; background: #f8f9fa; border-radius: 12px; border: 2px dashed #dee2e6; }
         .suggestions-list { position: absolute; top: 100%; left: 0; right: 0; z-index: 1050; max-height: 250px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,.15); border-radius: 0 0 .375rem .375rem; }
         .suggestion-item { cursor: pointer; padding: 10px 15px; background: #fff; border-bottom: 1px solid #eee; transition: background 0.2s; }
         .suggestion-item:hover { background-color: #f1f3f5; }
         #selectedCustomerCard { display: none; background: #fff; border-radius: 12px; border: 1px solid #e9ecef; }
-        .avatar-circle { width: 60px; height: 60px; background-color: var(--primary-color); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; }
-    
-    /* Add this to your existing styles */
-.bg-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }</style>
+        .avatar-circle { width: 60px; height: 60px; background-color: #4f46e5; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; }
+        
+        /* Payment Modal Styles */
+        .btn-indigo { background-color: #4f46e5; color: white; }
+        .btn-indigo:hover { background-color: #4338ca; color: white; }
+    </style>
 </head>
 <body>
 
@@ -50,7 +52,6 @@ if (!isset($_SESSION['user_id'])) {
                             <i class="far fa-clock card-icon-bg"></i>
                         </div>
                     </div>
-                    
                     <div class="col-md-6 col-lg-4 mb-3">
                         <div class="card dash-card bg-pink shadow-sm h-100">
                             <div class="card-body d-flex align-items-center justify-content-between">
@@ -60,14 +61,10 @@ if (!isset($_SESSION['user_id'])) {
                             <i class="fas fa-check-circle card-icon-bg"></i>
                         </div>
                     </div>
-
                     <div class="col-md-6 col-lg-4 mb-3">
                         <div class="card dash-card bg-blue shadow-sm h-100">
                             <div class="card-body d-flex align-items-center justify-content-between">
-                               <div>
-                                   <h6 class="text-uppercase mb-1">Total Revenue</h6>
-                                   <h2 class="mb-0 fw-bold" id="countRevenue">₹0.00</h2>
-                               </div>
+                               <div><h6 class="text-uppercase mb-1">Total Revenue</h6><h2 class="mb-0 fw-bold" id="countRevenue">₹0.00</h2></div>
                                <i class="fas fa-rupee-sign fa-3x"></i>
                             </div>
                             <i class="fas fa-wallet card-icon-bg"></i>
@@ -138,9 +135,8 @@ if (!isset($_SESSION['user_id'])) {
             </div>
 
             <div id="billingView" class="d-none">
-                
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="fw-bold text-primary"><i class="fas fa-cash-register me-2"></i>New Appointment / Billing</h4>
+                    <h4 class="fw-bold text-primary"><i class="fas fa-cash-register me-2"></i>Edit Services / Billing</h4>
                     <button class="btn btn-secondary" onclick="closeBillingView()">
                         <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
                     </button>
@@ -198,20 +194,12 @@ if (!isset($_SESSION['user_id'])) {
                                 <div class="d-flex justify-content-between mb-2 border-bottom pb-1"><span class="text-muted">Total:</span><span class="fw-bold text-success" id="histSpent">₹0</span></div>
                             </div>
                         </div>
-
-                        <div class="card shadow-sm mb-3 border-top border-4 border-info">
-                            <div class="card-header bg-white fw-bold"><i class="fas fa-file-invoice me-2 text-info"></i>Last Bill</div>
-                            <div class="card-body p-3 small">
-                                <div class="mb-2"><span class="d-block text-muted">Stylist:</span><strong id="lastStylist">--</strong></div>
-                                <div class="mb-2"><span class="d-block text-muted">Service:</span><strong id="lastService">--</strong></div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
                 <div class="d-flex justify-content-end mt-4 p-3 bg-white shadow-sm rounded">
                     <button type="button" class="btn btn-danger me-2 px-4" onclick="closeBillingView()"><i class="fas fa-times me-2"></i> Cancel</button>
-                    <button type="button" class="btn btn-success px-5" id="btnSaveBooking" onclick="saveAdvancedBooking()"><i class="fas fa-save me-2"></i> Save</button>
+                    <button type="button" class="btn btn-success px-5" id="btnSaveBooking" onclick="saveAdvancedBooking()"><i class="fas fa-save me-2"></i> Save Changes</button>
                 </div>
             </div>
 
@@ -241,10 +229,6 @@ if (!isset($_SESSION['user_id'])) {
                              <div class="col-md-6"><label class="form-label">Gender</label><select class="form-select" name="gender" id="clientGender" required><option value="Male">Male</option><option value="Female">Female</option></select></div>
                             <div class="col-md-6"><label class="form-label">Type</label><select class="form-select" name="client_type" id="clientType" required><option value="Outsider">Outsider</option><option value="Student">Student</option><option value="Faculty">Faculty</option></select></div>
                         </div>
-                        <div class="row mb-4 d-none">
-                            <div class="col-md-6"><select class="form-select" name="employee_id" id="employeeSelect"></select></div>
-                            <div class="col-md-6"><select class="form-select" name="service_id" id="serviceSelect"></select></div>
-                        </div>
                         <div class="mb-4" id="statusDiv" style="display:none;">
                              <label class="form-label">Status</label>
                              <select class="form-select fw-bold" name="status" id="apptStatus">
@@ -253,6 +237,51 @@ if (!isset($_SESSION['user_id'])) {
                         </div>
                         <div class="d-grid text-end"><button type="submit" class="btn btn-primary px-5" id="submitBtn">Confirm Booking</button></div>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="moveBillModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-indigo text-white">
+                     <h5 class="modal-title"><i class="fas fa-file-invoice-dollar me-2"></i>Finalize Bill</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body font-monospace">
+                    <div class="mb-3 border-bottom pb-2">
+                        <h6 class="fw-bold text-muted mb-1">Customer Details</h6>
+                        <div id="billClientName" class="fw-bold fs-5"></div>
+                        <div id="billClientPhone" class="text-muted small"></div>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-muted mb-2">Services Summary</h6>
+                        <div id="billServicesList" class="ps-2"></div>
+                    </div>
+                    <div class="alert alert-success d-flex justify-content-between align-items-center mt-3 mb-0">
+                        <span class="fw-bold">Grand Total To Pay:</span>
+                        <span id="billGrandTotal" class="fs-4 fw-bold"></span>
+                    </div>
+                    <div id="paymentOptionsSection" class="mt-4" style="display:none;">
+                        <h6 class="text-center text-muted mb-3">- Select Payment Method -</h6>
+                        <div class="d-flex justify-content-center">
+                            <button class="btn btn-outline-dark p-3 d-flex align-items-center gap-2" id="gpayBtn" style="border-radius: 12px;">
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/2560px-Google_Pay_Logo.svg.png" alt="GPay" height="24">
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <input type="hidden" id="hiddenBillPhone">
+                    <input type="hidden" id="hiddenBillDate">
+                    <input type="hidden" id="hiddenBillTime">
+                    <button type="button" class="btn btn-indigo text-white w-100 py-2" id="btnGenerateBillStep">
+                        <i class="fas fa-cog me-2"></i>Generate Final Bill
+                    </button>
+                    <button type="button" class="btn btn-success w-100 py-2" id="btnFinalCheckout" style="display:none;">
+                        <i class="fas fa-check-circle me-2"></i>Confirm Checkout & Move
+                    </button>
                 </div>
             </div>
         </div>

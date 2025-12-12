@@ -1,34 +1,29 @@
-// --- GLOBAL VARIABLES ---
+// modules/appointments/script.js
+
 let allAppointments = [];
 let selectedCustomerData = null; 
 let serviceOptionsHTML = ''; 
 let employeeOptionsHTML = '';
-let editingState = null;        // Tracks if we are editing an existing appointment
-let tempBookingTime = '';       // Temporarily stores time from the modal
+let editingState = null;        
+let tempBookingTime = '';       
 
 $(document).ready(function() {
     // 1. Initial Load
     let today = $('#dateFilter').val();
     loadDashboardAndTable(today);
-    
-    // Load dropdowns immediately
     loadDropdownData(); 
 
-    // 2. Handle Date Filter Change
+    // 2. Date Filter
     $('#dateFilter').on('change', function() {
-        let selectedDate = $(this).val();
-        loadDashboardAndTable(selectedDate);
+        loadDashboardAndTable($(this).val());
     });
 
-    // 3. Handle Form Submit (Intercept "Confirm Booking")
+    // 3. Handle Booking/Edit Form Submit
     $('#apptForm').submit(function(e) {
         e.preventDefault();
-        
         let action = $('#formAction').val();
 
-        // SCENARIO 1: NEW BOOKING -> Go to Billing View
         if(action === 'create') {
-            // A. Capture Data from the Modal
             let name = $('#clientName').val();
             let phone = $('#clientPhone').val();
             let gender = $('#clientGender').val();
@@ -36,144 +31,168 @@ $(document).ready(function() {
             let date = $('#apptDate').val();
             let time = $('#apptTime').val(); 
 
-            // B. Validate
             if(!name || !date || !time) {
                 Swal.fire('Error', 'Please fill in Name, Date, and Time', 'warning');
                 return;
             }
 
-            // C. Store Data Globally
-            selectedCustomerData = {
-                client_name: name,
-                client_phone: phone,
-                gender: gender,
-                client_type: type
-            };
-            
-            // Save the time to use later when clicking "Save"
+            selectedCustomerData = { client_name: name, client_phone: phone, gender: gender, client_type: type };
             tempBookingTime = time; 
-            
-            // Clear Edit State (since this is a new booking)
             editingState = null;
 
-            // D. Populate Billing View UI
             $('#advCustName').text(name);
             $('#advCustPhone').text(phone);
             $('#advDate').val(date);
-            
-            // E. Reset Cart (Start fresh)
             $('#serviceCartBody').html('');
             addNewServiceRow(); 
-            
-            // F. Load History
             if(phone) loadCustomerHistory(phone);
 
-            // G. Switch Views
             $('#apptModal').modal('hide'); 
             openBillingView(); 
-
         } 
-        // SCENARIO 2: EDITING EXISTING DETAILS (Blue Button) -> Update DB Immediately
         else {
+            // Edit Details (Blue Button)
             let $btn = $('#submitBtn');
-            let originalText = $btn.text();
-            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> Processing...');
-
+            $btn.prop('disabled', true).text('Processing...');
             $.ajax({
-                url: 'api.php',
-                type: 'POST',
-                data: $(this).serialize(),
-                dataType: 'json',
+                url: 'api.php', type: 'POST', data: $(this).serialize(), dataType: 'json',
                 success: function(res) {
-                    if(res.status === 'success') {
-                        $('#apptModal').modal('hide');
-                        loadDashboardAndTable($('#dateFilter').val());
-                        Swal.fire('Success', 'Updated successfully!', 'success');
-                    } else {
-                        Swal.fire('Error', 'Operation failed.', 'error');
-                    }
+                    $('#apptModal').modal('hide');
+                    loadDashboardAndTable($('#dateFilter').val());
+                    Swal.fire('Success', 'Updated successfully!', 'success');
                 },
-                error: function() { Swal.fire('Error', 'Server connection failed.', 'error'); },
-                complete: function() { $btn.prop('disabled', false).text(originalText); }
+                complete: function() { $btn.prop('disabled', false).text('Update Details'); }
             });
         }
     });
 
-    // 4. Handle "View Billing" Click (Yellow Button)
+    // 4. Handle "Edit Services" Click (Yellow Button)
     $(document).on('click', '.view-bill-btn', function() {
         let id = $(this).data('id'); 
         let apptData = allAppointments.find(a => a.id == id);
         if (apptData) viewBilling(apptData);
     });
 
-    // 5. Handle "Edit" Click (Blue Button)
+    // 5. Handle "Edit Details" Click (Blue Button)
     $(document).on('click', '.edit-btn', function() {
         let id = $(this).data('id'); 
         let apptData = allAppointments.find(a => a.id == id);
         if (apptData) editAppt(apptData);
     });
 
-    // 6. Search Input listener
+    // 6. Search Logic
     $('#customerSearchInput').on('keyup', function() {
         let query = $(this).val();
-        if (query.length < 2) {
-            $('#suggestionsList').addClass('d-none');
-            return;
-        }
+        if (query.length < 2) { $('#suggestionsList').addClass('d-none'); return; }
         $.post('api.php', { action: 'search_clients', query: query }, function(data) {
             let html = '';
             if (data.length > 0) {
                 data.forEach(client => {
                     let clientDataStr = JSON.stringify(client).replace(/"/g, '&quot;');
-                    html += `
-                        <div class="suggestion-item list-group-item list-group-item-action" onclick="selectCustomer(${clientDataStr})">
+                    html += `<div class="suggestion-item list-group-item list-group-item-action" onclick="selectCustomer(${clientDataStr})">
                             <div class="fw-bold">${client.client_phone} - <span class="text-primary text-uppercase">${client.client_name}</span></div>
-                            <small class="text-muted">${client.gender} | ${client.client_type}</small>
                         </div>`;
                 });
-            } else {
-                html = '<div class="list-group-item text-muted">No previous customers found. Click "New".</div>';
-            }
+            } else { html = '<div class="list-group-item text-muted">No previous customers found.</div>'; }
             $('#suggestionsList').html(html).removeClass('d-none');
         }, 'json');
     });
 
-    // Hide suggestions on click outside
     $(document).on('click', function(e) {
         if (!$(e.target).closest('#customerSearchInput, #suggestionsList').length) {
             $('#suggestionsList').addClass('d-none');
         }
     });
 
-    // 7. "Add Appointment" from Search Card
     $('#btnContinueToBook').on('click', function() {
         if (!selectedCustomerData) return;
-        
         editingState = null; 
-        tempBookingTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); // Default "Now"
-
+        tempBookingTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         $('#advCustName').text(selectedCustomerData.client_name);
         $('#advCustPhone').text(selectedCustomerData.client_phone);
         loadCustomerHistory(selectedCustomerData.client_phone);
-        
         $('#serviceCartBody').html(''); 
         addNewServiceRow();
         openBillingView(); 
+    });
+
+    // =========================================================
+    // NEW: CHECKOUT / MOVE BILL LOGIC
+    // =========================================================
+    
+    // 1. Click "Move Bill" (Indigo Button)
+    $(document).on('click', '.move-bill-btn', function() {
+        const name = $(this).data('name');
+        const phone = $(this).data('phone');
+        // Format services nicely
+        const servicesHtml = $(this).data('services').toString().replace(/<br>/g, '<div class="mb-1 border-bottom border-light pb-1"></div>');
+        const total = $(this).data('total');
+        
+        // Populate Modal
+        $('#billClientName').text(name);
+        $('#billClientPhone').text(phone);
+        $('#billServicesList').html(servicesHtml);
+        $('#billGrandTotal').text('₹' + parseFloat(total).toFixed(2));
+        
+        $('#hiddenBillPhone').val(phone);
+        $('#hiddenBillDate').val($(this).data('datesafe'));
+        $('#hiddenBillTime').val($(this).data('timesafe'));
+
+        // Reset UI
+        $('#paymentOptionsSection').hide();
+        $('#gpayBtn').removeClass('btn-success text-white border-0').addClass('btn-outline-dark');
+        $('#btnGenerateBillStep').show();
+        $('#btnFinalCheckout').hide();
+
+        $('#moveBillModal').modal('show');
+    });
+
+    // 2. Generate Bill Step
+    $('#btnGenerateBillStep').click(function() {
+        $(this).hide();
+        $('#paymentOptionsSection').fadeIn();
+    });
+
+    // 3. Select GPay
+    $('#gpayBtn').click(function() {
+        $(this).removeClass('btn-outline-dark').addClass('btn-success text-white border-0');
+        $('#btnFinalCheckout').fadeIn();
+    });
+
+    // 4. Final Checkout (API Call)
+    $('#btnFinalCheckout').click(function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).text('Processing...');
+
+        $.post('api.php', {
+            action: 'move_to_billing',
+            client_phone: $('#hiddenBillPhone').val(),
+            appointment_date: $('#hiddenBillDate').val(),
+            appointment_time: $('#hiddenBillTime').val()
+        }, function(response) {
+            if(response.status === 'success') {
+                $('#moveBillModal').modal('hide');
+                Swal.fire({ icon: 'success', title: 'Moved to Billing!', timer: 1500, showConfirmButton: false });
+                loadDashboardAndTable($('#dateFilter').val());
+            } else {
+                Swal.fire('Error', 'Failed to move.', 'error');
+            }
+            $btn.prop('disabled', false).text('Confirm Checkout & Move');
+        }, 'json');
     });
 });
 
 // --- HELPER FUNCTIONS ---
 
 function loadDashboardAndTable(date) {
-    // Load Counts
+    // 1. Fetch Dashboard Counts
     $.post('api.php', { action: 'fetch_counts', date_filter: date }, function(data) {
         $('#countOpen').text(data.open_count);
         $('#countClosed').text(data.closed_count);
-        let revenue = parseFloat(data.total_revenue) || 0;
-        $('#countRevenue').text('₹' + revenue.toFixed(2));
+        $('#countRevenue').text('₹' + (parseFloat(data.total_revenue)||0).toFixed(2));
     }, 'json');
 
-    // Load Table
+    // 2. Fetch Appointments Table Data
     $.post('api.php', { action: 'fetch_by_date', date_filter: date }, function(data) {
         allAppointments = data;
         let rows = '';
@@ -182,17 +201,62 @@ function loadDashboardAndTable(date) {
              rows = '<tr><td colspan="8" class="text-center text-muted py-4">No appointments found.</td></tr>';
         } else {
             data.forEach(function(appt) {
-                let statusBadge = appt.status === 'Scheduled' ? '<span class="badge bg-primary">Scheduled</span>' : 
-                                  (appt.status === 'Completed' ? '<span class="badge bg-success">Completed</span>' : '<span class="badge bg-danger">Cancelled</span>');
                 
-                let timeParts = appt.appointment_time.split(':');
-                let dateObj = new Date(0, 0, 0, timeParts[0], timeParts[1]);
-                let formattedTime = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: true });
+                // --- Status Badge Logic ---
+                let statusBadge = '';
+                if (appt.status === 'Scheduled') {
+                    statusBadge = '<span class="badge bg-primary">Scheduled</span>';
+                } else if (appt.status === 'Completed') {
+                    statusBadge = '<span class="badge bg-success">Completed</span>';
+                } else {
+                    statusBadge = '<span class="badge bg-danger">Cancelled</span>';
+                }
 
+                // --- Format Time ---
+                let timeParts = appt.appointment_time.split(':');
+                let formattedTime = new Date(0, 0, 0, timeParts[0], timeParts[1]).toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: true });
+
+                // --- Safe Variables ---
                 let phoneSafe = appt.client_phone || '';
                 let dateSafe = appt.appointment_date;
                 let timeSafe = appt.appointment_time;
 
+                // --- ACTIONS LOGIC (The Fix) ---
+                let actionsColumnContent = '';
+
+                if (appt.status === 'Completed') {
+                    // CASE 1: If Moved to Billing -> Show NO Actions (or a simple text)
+                    actionsColumnContent = '<span class="text-muted small fst-italic"><i class="fas fa-check-circle me-1"></i>Billed</span>';
+                } else {
+                    // CASE 2: If Scheduled/Cancelled -> Show All Buttons
+                    actionsColumnContent = `
+                        <button class="btn btn-sm btn-warning text-dark me-1 view-bill-btn" data-id="${appt.id}" title="Edit Services">
+                            <i class="fas fa-list-ul"></i>
+                        </button>
+                        
+                        <button class="btn btn-sm btn-info text-white me-1 edit-btn" data-id="${appt.id}" title="Edit Details">
+                            <i class="fas fa-edit"></i>
+                        </button>
+
+                        <button class="btn btn-sm btn-indigo text-white me-1 move-bill-btn" 
+                                data-id="${appt.id}"
+                                data-name="${appt.client_name}" 
+                                data-phone="${phoneSafe}" 
+                                data-services="${appt.service_details}" 
+                                data-total="${appt.total_price}" 
+                                data-datesafe="${dateSafe}" 
+                                data-timesafe="${timeSafe}"
+                                title="Checkout">
+                            <i class="fas fa-file-import"></i>
+                        </button>
+                        
+                        <button class="btn btn-sm btn-danger" onclick="deleteGroupAppt('${phoneSafe}', '${dateSafe}', '${timeSafe}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                }
+
+                // --- Build Row HTML ---
                 rows += `
                 <tr>
                     <td class="fw-bold text-primary">#${appt.id}</td>
@@ -210,19 +274,8 @@ function loadDashboardAndTable(date) {
                         </div>
                     </td>
                     <td>${statusBadge}</td>
-                    <td>
-                        <button class="btn btn-sm btn-warning text-dark me-1 view-bill-btn" data-id="${appt.id}" title="View/Edit Services">
-                            <i class="fas fa-file-invoice-dollar"></i>
-                        </button>
-
-                        <button class="btn btn-sm btn-info text-white me-1" onclick="moveToBill('${phoneSafe}', '${dateSafe}', '${timeSafe}')" title="Move to Billing">
-                <i class="fas fa-file-import"></i>
-            </button>
-                        
-                        <button class="btn btn-sm btn-danger" onclick="deleteGroupAppt('${phoneSafe}', '${dateSafe}', '${timeSafe}')" title="Delete All">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
+                    
+                    <td>${actionsColumnContent}</td>
                 </tr>`;
             });
         }
@@ -233,22 +286,13 @@ function loadDashboardAndTable(date) {
 function loadDropdownData() {
     $.post('api.php', { action: 'fetch_dropdowns' }, function(data) {
         employeeOptionsHTML = '<option value="">Select Staff</option>';
-        data.employees.forEach(e => {
-            employeeOptionsHTML += `<option value="${e.id}">${e.name}</option>`;
-        });
-
+        data.employees.forEach(e => { employeeOptionsHTML += `<option value="${e.id}">${e.name}</option>`; });
         serviceOptionsHTML = '<option value="" data-price="0">Select Service</option>';
-        data.services.forEach(s => {
-            serviceOptionsHTML += `<option value="${s.id}" data-price="${s.price}">${s.service_name}</option>`;
-        });
-        
-        // Populate Fallback Modal dropdowns
+        data.services.forEach(s => { serviceOptionsHTML += `<option value="${s.id}" data-price="${s.price}">${s.service_name}</option>`; });
         $('#employeeSelect').html(employeeOptionsHTML);
         $('#serviceSelect').html(serviceOptionsHTML);
     }, 'json');
 }
-
-// --- VIEW & MODAL LOGIC ---
 
 function openModalForNew() {
     resetSearch();
@@ -272,59 +316,29 @@ function editAppt(appt) {
     $('#clientGender').val(appt.gender);
     $('#clientType').val(appt.client_type);
     $('#apptStatus').val(appt.status);
-    
     $('#formAction').val('update');
     $('#modalTitle').html('<i class="fas fa-edit me-2"></i>Edit Details #' + appt.id);
     $('#submitBtn').text('Update Details').removeClass('btn-primary').addClass('btn-warning');
     $('#statusDiv').show();
-    
     $('#apptModal').modal('show');
 }
 
-// --- GROUP DELETE LOGIC ---
 function deleteGroupAppt(phone, date, time) {
     Swal.fire({
-        title: 'Delete Appointment?',
-        text: "This will remove ALL services for this appointment.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        confirmButtonText: 'Yes, delete all!'
+        title: 'Delete Appointment?', text: "Removes all services for this visit.", icon: 'warning',
+        showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete all!'
     }).then((result) => {
         if (result.isConfirmed) {
-            $.post('api.php', { 
-                action: 'delete_group', 
-                phone: phone, 
-                date: date, 
-                time: time 
-            }, function(res) {
-                if(res.status === 'success') {
-                    loadDashboardAndTable($('#dateFilter').val());
-                    Swal.fire('Deleted!', 'Appointment removed.', 'success');
-                } else {
-                    Swal.fire('Error', 'Could not delete.', 'error');
-                }
+            $.post('api.php', { action: 'delete_group', phone: phone, date: date, time: time }, function(res) {
+                loadDashboardAndTable($('#dateFilter').val());
+                Swal.fire('Deleted!', '', 'success');
             }, 'json');
         }
     });
 }
 
-// --- SEARCH LOGIC ---
-
-function toggleSearchSection() {
-    $('#customerSearchSection').slideToggle();
-    $('#customerSearchInput').focus();
-    resetSearch();
-}
-
-function resetSearch() {
-    $('#customerSearchInput').val('');
-    $('#suggestionsList').addClass('d-none').html('');
-    $('#selectedCustomerCard').hide();
-    $('#btnContinueToBook').prop('disabled', true);
-    selectedCustomerData = null;
-}
-
+function toggleSearchSection() { $('#customerSearchSection').slideToggle(); $('#customerSearchInput').focus(); resetSearch(); }
+function resetSearch() { $('#customerSearchInput').val(''); $('#suggestionsList').addClass('d-none'); $('#selectedCustomerCard').hide(); $('#btnContinueToBook').prop('disabled', true); selectedCustomerData = null; }
 function selectCustomer(clientData) {
     selectedCustomerData = clientData;
     $('#suggestionsList').addClass('d-none');
@@ -337,63 +351,39 @@ function selectCustomer(clientData) {
     $('#btnContinueToBook').prop('disabled', false);
 }
 
-// --- BILLING / CART LOGIC ---
-
 function loadCustomerHistory(phone) {
     $('#histVisits').text('Loading...');
-    $('#histSpent').text('...');
-    
     $.post('api.php', { action: 'fetch_client_history', client_phone: phone }, function(data) {
         let stats = data.stats;
-        let bill = data.last_bill;
-        
-        $('#histVisits').text(stats.visit_count > 0 ? stats.visit_count : 'New Client');
+        $('#histVisits').text(stats.visit_count > 0 ? stats.visit_count : 'New');
         $('#histFirst').text(stats.first_visit || '--');
         $('#histLast').text(stats.last_visit || '--');
         $('#histSpent').text('₹' + (parseFloat(stats.total_spent) || 0).toFixed(2));
-        
-        if(bill) {
-            $('#lastStylist').text(bill.stylist);
-            $('#lastService').text(bill.service_name);
-        } else {
-            $('#lastStylist').text('--');
-            $('#lastService').text('--');
-        }
     }, 'json');
 }
 
 function addNewServiceRow() {
     let rowId = Date.now();
-    let row = `
-        <tr id="row_${rowId}">
+    let row = `<tr id="row_${rowId}">
             <td><select class="form-select form-select-sm emp-select">${employeeOptionsHTML}</select></td>
             <td><select class="form-select form-select-sm svc-select" onchange="updateRowPrice(${rowId}, this)">${serviceOptionsHTML}</select></td>
             <td><input type="number" class="form-control form-control-sm price-input" value="0" onkeyup="calculateRowTotal(${rowId})"></td>
             <td><input type="number" class="form-control form-control-sm total-input fw-bold" value="0" readonly></td>
-            <td class="text-center">
-                <button class="btn btn-sm btn-outline-danger border-0" onclick="$('#row_${rowId}').remove(); calculateGrandTotal();"><i class="fas fa-trash"></i></button>
-            </td>
+            <td class="text-center"><button class="btn btn-sm btn-outline-danger border-0" onclick="$('#row_${rowId}').remove(); calculateGrandTotal();"><i class="fas fa-trash"></i></button></td>
         </tr>`;
     $('#serviceCartBody').append(row);
 }
-
 function addServiceRowWithData(item) {
     let rowId = Date.now() + Math.floor(Math.random() * 1000); 
     let price = parseFloat(item.price) || 0;
-
-    let row = `
-        <tr id="row_${rowId}">
+    let row = `<tr id="row_${rowId}">
             <td><select class="form-select form-select-sm emp-select">${employeeOptionsHTML}</select></td>
             <td><select class="form-select form-select-sm svc-select" onchange="updateRowPrice(${rowId}, this)">${serviceOptionsHTML}</select></td>
             <td><input type="number" class="form-control form-control-sm price-input" value="${price.toFixed(2)}" onkeyup="calculateRowTotal(${rowId})"></td>
             <td><input type="number" class="form-control form-control-sm total-input fw-bold" value="${price.toFixed(2)}" readonly></td>
-            <td class="text-center">
-                <button class="btn btn-sm btn-outline-danger border-0" onclick="$('#row_${rowId}').remove(); calculateGrandTotal();"><i class="fas fa-trash"></i></button>
-            </td>
+            <td class="text-center"><button class="btn btn-sm btn-outline-danger border-0" onclick="$('#row_${rowId}').remove(); calculateGrandTotal();"><i class="fas fa-trash"></i></button></td>
         </tr>`;
-    
     $('#serviceCartBody').append(row);
-
     let $row = $('#row_' + rowId);
     $row.find('.emp-select').val(item.employee_id);
     $row.find('.svc-select').val(item.service_id);
@@ -402,26 +392,19 @@ function addServiceRowWithData(item) {
 function updateRowPrice(rowId, selectEl) {
     let price = $(selectEl).find(':selected').data('price');
     let row = $('#row_' + rowId);
-    let basePrice = parseFloat(price) || 0;
-    
-    row.find('.price-input').val(basePrice.toFixed(2));
-    row.find('.total-input').val(basePrice.toFixed(2));
+    row.find('.price-input').val(parseFloat(price||0).toFixed(2));
+    row.find('.total-input').val(parseFloat(price||0).toFixed(2));
     calculateGrandTotal();
 }
-
 function calculateRowTotal(rowId) {
     let row = $('#row_' + rowId);
     let price = parseFloat(row.find('.price-input').val()) || 0;
     row.find('.total-input').val(price.toFixed(2));
     calculateGrandTotal();
 }
-
 function calculateGrandTotal() {
     let grandTotal = 0;
-    $('#serviceCartBody tr').each(function() {
-        let total = parseFloat($(this).find('.total-input').val()) || 0;
-        grandTotal += total;
-    });
+    $('#serviceCartBody tr').each(function() { grandTotal += parseFloat($(this).find('.total-input').val()) || 0; });
     $('#headerNet').text('₹' + grandTotal.toFixed(2));
 }
 
@@ -430,20 +413,14 @@ function saveAdvancedBooking() {
     $('#serviceCartBody tr').each(function() {
         let empId = $(this).find('.emp-select').val();
         let svcId = $(this).find('.svc-select').val();
-        if(empId && svcId) {
-            services.push({ employee_id: empId, service_id: svcId });
-        }
+        if(empId && svcId) services.push({ employee_id: empId, service_id: svcId });
     });
 
-    if(services.length === 0) {
-        Swal.fire('Error', 'Please add at least one service', 'warning');
-        return;
-    }
+    if(services.length === 0) { Swal.fire('Error', 'Please add services', 'warning'); return; }
 
     let $btn = $('#btnSaveBooking');
     $btn.prop('disabled', true).text('Saving...');
 
-    // Prepare data
     let payload = {
         action: 'save_appointment',
         client_name: $('#advCustName').text(),
@@ -451,11 +428,10 @@ function saveAdvancedBooking() {
         gender: selectedCustomerData.gender,
         client_type: selectedCustomerData.client_type,
         appointment_date: $('#advDate').val(),
-        appointment_time: tempBookingTime, // Send the captured time
+        appointment_time: tempBookingTime, 
         services: services
     };
 
-    // If editing, send original details for deletion
     if (editingState) {
         payload.original_date = editingState.original_date;
         payload.original_time = editingState.original_time;
@@ -463,100 +439,31 @@ function saveAdvancedBooking() {
     }
 
     $.post('api.php', payload, function(res) {
-        $btn.prop('disabled', false).html('<i class="fas fa-save me-2"></i> Save');
-        
+        $btn.prop('disabled', false).html('<i class="fas fa-save me-2"></i> Save Changes');
         if(res.status === 'success') {
             closeBillingView(); 
             $('#customerSearchSection').slideUp();
             loadDashboardAndTable($('#dateFilter').val());
-            Swal.fire('Success', 'Appointment Saved!', 'success');
-        } else {
-            Swal.fire('Error', 'Failed to save', 'error');
-        }
-    }, 'json').fail(function() {
-        $btn.prop('disabled', false).html('<i class="fas fa-save me-2"></i> Save');
-        Swal.fire('Error', 'Server Error', 'error');
-    });
+            Swal.fire('Success', 'Saved!', 'success');
+        } else { Swal.fire('Error', 'Failed to save', 'error'); }
+    }, 'json');
 }
 
 function viewBilling(appt) {
     $('#advCustName').text(appt.client_name);
     $('#advCustPhone').text(appt.client_phone);
     $('#advDate').val(appt.appointment_date);
-
-    // Save state for "Edit"
-    editingState = {
-        original_date: appt.appointment_date,
-        original_time: appt.appointment_time,
-        original_phone: appt.client_phone
-    };
-    
-    // Also set tempBookingTime so if we save without changes, it keeps the time
+    editingState = { original_date: appt.appointment_date, original_time: appt.appointment_time, original_phone: appt.client_phone };
     tempBookingTime = appt.appointment_time;
-
-    selectedCustomerData = {
-        client_name: appt.client_name,
-        client_phone: appt.client_phone,
-        gender: appt.gender,
-        client_type: appt.client_type
-    };
-
+    selectedCustomerData = { client_name: appt.client_name, client_phone: appt.client_phone, gender: appt.gender, client_type: appt.client_type };
     $('#serviceCartBody').html('');
-    $('#headerNet').text('Loading...');
-
-    // Fetch and populate rows
-    $.post('api.php', { 
-        action: 'fetch_group_details',
-        date: appt.appointment_date,
-        time: appt.appointment_time,
-        phone: appt.client_phone
-    }, function(items) {
-        items.forEach(function(item) {
-            addServiceRowWithData(item);
-        });
+    $.post('api.php', { action: 'fetch_group_details', date: appt.appointment_date, time: appt.appointment_time, phone: appt.client_phone }, function(items) {
+        items.forEach(function(item) { addServiceRowWithData(item); });
         calculateGrandTotal();
     }, 'json');
-    
     loadCustomerHistory(appt.client_phone);
     openBillingView();
 }
 
-// --- TOGGLE VIEWS ---
-
-function openBillingView() {
-    $('#mainDashboardView').addClass('d-none');
-    $('#billingView').removeClass('d-none');
-}
-
-function closeBillingView() {
-    $('#billingView').addClass('d-none');
-    $('#mainDashboardView').removeClass('d-none');
-}
-
-// --- MOVE TO BILL LOGIC ---
-function moveToBill(phone, date, time) {
-    Swal.fire({
-        title: 'Move to Billing?',
-        text: "This will remove it from Appointments and show it in the Billing menu.",
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, Move it!'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            $.post('api.php', { 
-                action: 'move_to_bill', 
-                phone: phone, 
-                date: date, 
-                time: time 
-            }, function(res) {
-                if(res.status === 'success') {
-                    loadDashboardAndTable($('#dateFilter').val());
-                    Swal.fire('Moved!', 'Appointment moved to Billing.', 'success');
-                } else {
-                    Swal.fire('Error', 'Could not move.', 'error');
-                }
-            }, 'json');
-        }
-    });
-}
+function openBillingView() { $('#mainDashboardView').addClass('d-none'); $('#billingView').removeClass('d-none'); }
+function closeBillingView() { $('#billingView').addClass('d-none'); $('#mainDashboardView').removeClass('d-none'); }
