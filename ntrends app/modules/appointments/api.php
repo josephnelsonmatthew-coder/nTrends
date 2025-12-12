@@ -220,4 +220,38 @@ if ($action == 'fetch_group_details') {
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     exit;
 }
+// --- SEARCH SERVICES BY PRICE ---
+// =========================================================
+// SEARCH SERVICES BY PRICE (Reverse Lookup for Billing)
+// =========================================================
+if ($action == "search_services_by_price") {
+
+    $price_raw = $_POST['price'] ?? '';
+
+    // Return empty list if no price given
+    if ($price_raw === '' || !is_numeric($price_raw)) {
+        echo json_encode([]);
+        exit;
+    }
+
+    // Normalize price
+    $price = floatval($price_raw);
+
+    // Query services with exact price match
+    $sql = "SELECT id, service_name, price
+            FROM services
+            WHERE price = ?
+            ORDER BY service_name ASC
+            LIMIT 200";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$price]);
+
+    $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode($services);
+    exit;
+}
+
+
 ?>

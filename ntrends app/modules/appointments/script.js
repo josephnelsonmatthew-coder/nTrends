@@ -467,3 +467,78 @@ function viewBilling(appt) {
 
 function openBillingView() { $('#mainDashboardView').addClass('d-none'); $('#billingView').removeClass('d-none'); }
 function closeBillingView() { $('#billingView').addClass('d-none'); $('#mainDashboardView').removeClass('d-none'); }
+// =========================================================
+// PRICE BASED SERVICE FILTER (Reverse Search)
+// =========================================================
+
+// Debounce helper (prevents too many API calls)
+function debounce(fn, delay) {
+    let timer = null;
+    return function () {
+        const ctx = this, args = arguments;
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(ctx, args), delay);
+    };
+}
+
+// Listen for typing in PRICE field
+$(document).on('input', '.price-input', debounce(function () {
+
+    console.log("PRICE FILTER TRIGGERED");
+
+    const $priceInput = $(this);
+    const priceRaw = $priceInput.val().trim();
+    const $row = $priceInput.closest('tr');
+    const $svcDropdown = $row.find('.svc-select');
+
+    // If empty or not a number → Reset dropdown
+    if (priceRaw === '' || isNaN(parseFloat(priceRaw))) {
+        $svcDropdown.html(serviceOptionsHTML);
+        return;
+    }
+
+    const price = parseFloat(priceRaw);
+
+    // Temporary "Searching..." indicator
+    $svcDropdown.html('<option>Searching...</option>');
+
+    // AJAX request to appointments/api.php
+    $.post(
+        'api.php',
+        { action: 'search_services_by_price', price: price },
+        function (data) {
+
+            console.log("SERVICE SEARCH RESPONSE:", data);
+
+            $svcDropdown.empty();
+
+            // No matches found
+            if (!Array.isArray(data) || data.length === 0) {
+                $svcDropdown.append('<option value="">No services found</option>');
+                return;
+            }
+
+            // Populate dropdown with filtered services
+            data.forEach(s => {
+                const dprice = s.price ? parseFloat(s.price).toFixed(2) : '0.00';
+                $svcDropdown.append(
+                    `<option value="${s.id}" data-price="${dprice}">${s.service_name}</option>`
+                );
+            });
+
+        },
+        'json'
+    )
+    .fail(function (xhr, status, error) {
+
+        console.log("PRICE FILTER AJAX FAILED");
+        console.log("STATUS:", status);
+        console.log("ERROR:", error);
+        console.log("RESPONSE TEXT:", xhr.responseText);
+
+        $svcDropdown.html('<option value="">Error fetching services</option>');
+    });
+
+}, 300)); // 300ms debounce delay
+
+console.log("PRICE FILTER SCRIPT LOADED SUCCESSFULLY");
