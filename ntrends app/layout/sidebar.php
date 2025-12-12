@@ -13,7 +13,6 @@
             <a href="../appointments/index.php" class="list-group-item list-group-item-action" title="Appointments">
                 <i class="fas fa-calendar-alt fa-fw me-2"></i> <span class="link-text">Appointments</span>
             </a>
-
             <a href="../billing/index.php" class="list-group-item list-group-item-action" title="Billing">
         <i class="fas fa-file-invoice-dollar fa-fw me-2"></i> <span class="link-text">Billing</span>
     </a>
