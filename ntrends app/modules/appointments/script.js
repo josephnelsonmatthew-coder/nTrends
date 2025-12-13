@@ -18,7 +18,88 @@ $(document).ready(function() {
         loadDashboardAndTable($(this).val());
     });
 
-    // 3. Handle Booking/Edit Form Submit
+    $('#clientPhone').on('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+
+    // 3. EDIT SERVICES (Yellow Button)
+    $(document).on('click', '.view-bill-btn', function() {
+        let id = $(this).data('id'); 
+        let apptData = allAppointments.find(a => a.id == id);
+        if (apptData) viewBilling(apptData);
+    });
+
+    // 4. EDIT DETAILS (Blue Button)
+    $(document).on('click', '.edit-btn', function() {
+        let id = $(this).data('id'); 
+        let apptData = allAppointments.find(a => a.id == id);
+        if (apptData) editAppt(apptData);
+    });
+
+    // =========================================================
+    // 5. MOVE TO BILL (Indigo Button) -> OPENS CHECKOUT MODAL
+    // =========================================================
+    $(document).on('click', '.move-bill-btn', function() {
+        // Get data from button data-attributes
+        const name = $(this).data('name');
+        const phone = $(this).data('phone');
+        const services = $(this).data('services');
+        const netTotal = parseFloat($(this).data('net')); // Final Amount (after discount)
+        const discount = $(this).data('discount');
+        const dateSafe = $(this).data('datesafe');
+        const timeSafe = $(this).data('timesafe');
+
+        // Populate Modal UI
+        $('#payModalName').text(name);
+        $('#payModalServices').html(services.replace(/<br>/g, ', '));
+        $('#payModalTotal').text('₹' + netTotal.toFixed(2));
+        
+        // Show discount badge if applicable
+        if(discount > 0) {
+            $('#payModalDiscount').text('Discount Applied: ' + discount + '%').show();
+        } else {
+            $('#payModalDiscount').hide();
+        }
+
+        // Set Hidden Fields for API
+        $('#payHiddenPhone').val(phone);
+        $('#payHiddenDate').val(dateSafe);
+        $('#payHiddenTime').val(timeSafe);
+
+        // Reset Payment Selection to Cash by default
+        $('#pm_cash').prop('checked', true);
+
+        // Show Modal
+        $('#checkoutModal').modal('show');
+    });
+
+    // 6. CONFIRM PAYMENT CLICK (Inside Modal)
+    $('#btnConfirmPayment').click(function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
+
+        const paymentMethod = $('input[name="payMethod"]:checked').val();
+        
+        $.post('api.php', {
+            action: 'move_to_billing',
+            client_phone: $('#payHiddenPhone').val(),
+            appointment_date: $('#payHiddenDate').val(),
+            appointment_time: $('#payHiddenTime').val(),
+            payment_method: paymentMethod // Send chosen method
+        }, function(res) {
+            if(res.status === 'success') {
+                $('#checkoutModal').modal('hide');
+                loadDashboardAndTable($('#dateFilter').val());
+                Swal.fire({ icon: 'success', title: 'Payment Successful!', text: 'Moved to Billing History.', timer: 1500, showConfirmButton: false });
+            } else {
+                Swal.fire('Error', 'Failed to process payment.', 'error');
+            }
+            // Reset button
+            $btn.prop('disabled', false).html('<i class="fas fa-check-circle me-2"></i>Confirm Payment & Close Bill');
+        }, 'json');
+    });
+
+    // 7. HANDLE BOOKING FORM SUBMIT
     $('#apptForm').submit(function(e) {
         e.preventDefault();
         let action = $('#formAction').val();
@@ -31,10 +112,7 @@ $(document).ready(function() {
             let date = $('#apptDate').val();
             let time = $('#apptTime').val(); 
 
-            if(!name || !date || !time) {
-                Swal.fire('Error', 'Please fill in Name, Date, and Time', 'warning');
-                return;
-            }
+            if(!name || !date || !time) { Swal.fire('Error', 'Fill required fields', 'warning'); return; }
 
             selectedCustomerData = { client_name: name, client_phone: phone, gender: gender, client_type: type };
             tempBookingTime = time; 
@@ -43,6 +121,7 @@ $(document).ready(function() {
             $('#advCustName').text(name);
             $('#advCustPhone').text(phone);
             $('#advDate').val(date);
+            $('#advDiscount').val(0); // Reset discount
             $('#serviceCartBody').html('');
             addNewServiceRow(); 
             if(phone) loadCustomerHistory(phone);
@@ -51,36 +130,19 @@ $(document).ready(function() {
             openBillingView(); 
         } 
         else {
-            // Edit Details (Blue Button)
-            let $btn = $('#submitBtn');
-            $btn.prop('disabled', true).text('Processing...');
+            // Update Existing Details
             $.ajax({
                 url: 'api.php', type: 'POST', data: $(this).serialize(), dataType: 'json',
                 success: function(res) {
                     $('#apptModal').modal('hide');
                     loadDashboardAndTable($('#dateFilter').val());
-                    Swal.fire('Success', 'Updated successfully!', 'success');
-                },
-                complete: function() { $btn.prop('disabled', false).text('Update Details'); }
+                    Swal.fire('Success', 'Updated!', 'success');
+                }
             });
         }
     });
 
-    // 4. Handle "Edit Services" Click (Yellow Button)
-    $(document).on('click', '.view-bill-btn', function() {
-        let id = $(this).data('id'); 
-        let apptData = allAppointments.find(a => a.id == id);
-        if (apptData) viewBilling(apptData);
-    });
-
-    // 5. Handle "Edit Details" Click (Blue Button)
-    $(document).on('click', '.edit-btn', function() {
-        let id = $(this).data('id'); 
-        let apptData = allAppointments.find(a => a.id == id);
-        if (apptData) editAppt(apptData);
-    });
-
-    // 6. Search Logic
+    // Search Logic
     $('#customerSearchInput').on('keyup', function() {
         let query = $(this).val();
         if (query.length < 2) { $('#suggestionsList').addClass('d-none'); return; }
@@ -110,89 +172,27 @@ $(document).ready(function() {
         tempBookingTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         $('#advCustName').text(selectedCustomerData.client_name);
         $('#advCustPhone').text(selectedCustomerData.client_phone);
+        $('#advDiscount').val(0); 
         loadCustomerHistory(selectedCustomerData.client_phone);
         $('#serviceCartBody').html(''); 
         addNewServiceRow();
         openBillingView(); 
     });
-
-    // =========================================================
-    // NEW: CHECKOUT / MOVE BILL LOGIC
-    // =========================================================
-    
-    // 1. Click "Move Bill" (Indigo Button)
-    $(document).on('click', '.move-bill-btn', function() {
-        const name = $(this).data('name');
-        const phone = $(this).data('phone');
-        // Format services nicely
-        const servicesHtml = $(this).data('services').toString().replace(/<br>/g, '<div class="mb-1 border-bottom border-light pb-1"></div>');
-        const total = $(this).data('total');
-        
-        // Populate Modal
-        $('#billClientName').text(name);
-        $('#billClientPhone').text(phone);
-        $('#billServicesList').html(servicesHtml);
-        $('#billGrandTotal').text('₹' + parseFloat(total).toFixed(2));
-        
-        $('#hiddenBillPhone').val(phone);
-        $('#hiddenBillDate').val($(this).data('datesafe'));
-        $('#hiddenBillTime').val($(this).data('timesafe'));
-
-        // Reset UI
-        $('#paymentOptionsSection').hide();
-        $('#gpayBtn').removeClass('btn-success text-white border-0').addClass('btn-outline-dark');
-        $('#btnGenerateBillStep').show();
-        $('#btnFinalCheckout').hide();
-
-        $('#moveBillModal').modal('show');
-    });
-
-    // 2. Generate Bill Step
-    $('#btnGenerateBillStep').click(function() {
-        $(this).hide();
-        $('#paymentOptionsSection').fadeIn();
-    });
-
-    // 3. Select GPay
-    $('#gpayBtn').click(function() {
-        $(this).removeClass('btn-outline-dark').addClass('btn-success text-white border-0');
-        $('#btnFinalCheckout').fadeIn();
-    });
-
-    // 4. Final Checkout (API Call)
-    $('#btnFinalCheckout').click(function() {
-        const $btn = $(this);
-        $btn.prop('disabled', true).text('Processing...');
-
-        $.post('api.php', {
-            action: 'move_to_billing',
-            client_phone: $('#hiddenBillPhone').val(),
-            appointment_date: $('#hiddenBillDate').val(),
-            appointment_time: $('#hiddenBillTime').val()
-        }, function(response) {
-            if(response.status === 'success') {
-                $('#moveBillModal').modal('hide');
-                Swal.fire({ icon: 'success', title: 'Moved to Billing!', timer: 1500, showConfirmButton: false });
-                loadDashboardAndTable($('#dateFilter').val());
-            } else {
-                Swal.fire('Error', 'Failed to move.', 'error');
-            }
-            $btn.prop('disabled', false).text('Confirm Checkout & Move');
-        }, 'json');
-    });
 });
 
-// --- HELPER FUNCTIONS ---
+// --- CORE FUNCTIONS ---
+
+/* modules/appointments/script.js */
 
 function loadDashboardAndTable(date) {
-    // 1. Fetch Dashboard Counts
+    // 1. Fetch Stats
     $.post('api.php', { action: 'fetch_counts', date_filter: date }, function(data) {
         $('#countOpen').text(data.open_count);
         $('#countClosed').text(data.closed_count);
         $('#countRevenue').text('₹' + (parseFloat(data.total_revenue)||0).toFixed(2));
     }, 'json');
 
-    // 2. Fetch Appointments Table Data
+    // 2. Fetch Table
     $.post('api.php', { action: 'fetch_by_date', date_filter: date }, function(data) {
         allAppointments = data;
         let rows = '';
@@ -201,80 +201,79 @@ function loadDashboardAndTable(date) {
              rows = '<tr><td colspan="8" class="text-center text-muted py-4">No appointments found.</td></tr>';
         } else {
             data.forEach(function(appt) {
-                
-                // --- Status Badge Logic ---
+                // Status Badge
                 let statusBadge = '';
-                if (appt.status === 'Scheduled') {
-                    statusBadge = '<span class="badge bg-primary">Scheduled</span>';
-                } else if (appt.status === 'Completed') {
-                    statusBadge = '<span class="badge bg-success">Completed</span>';
+                if (appt.status === 'Scheduled') statusBadge = '<span class="badge bg-primary">Scheduled</span>';
+                else if (appt.status === 'Completed') statusBadge = '<span class="badge bg-success">Completed</span>';
+                else statusBadge = '<span class="badge bg-danger">Cancelled</span>';
+
+                // --- CALCULATION LOGIC ---
+                let grossTotal = parseFloat(appt.total_price || 0);
+                let discountPercent = parseInt(appt.discount_percent || 0);
+                let discountAmount = (grossTotal * discountPercent) / 100;
+                let netTotal = grossTotal - discountAmount;
+
+                // --- PRICE DISPLAY HTML ---
+                let priceHTML = '';
+                if(discountPercent > 0) {
+                    // Show Discounted View
+                    priceHTML = `
+                        <div class="d-flex flex-column">
+                            <small class="text-muted text-decoration-line-through" style="font-size: 0.75rem;">₹${grossTotal.toFixed(2)}</small>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-bold text-success me-2">₹${netTotal.toFixed(2)}</span>
+                                <span class="badge bg-danger" style="font-size: 0.65rem;">-${discountPercent}%</span>
+                            </div>
+                        </div>`;
                 } else {
-                    statusBadge = '<span class="badge bg-danger">Cancelled</span>';
+                    // Show Normal View
+                    priceHTML = `<span class="fw-bold text-success">₹${netTotal.toFixed(2)}</span>`;
                 }
 
-                // --- Format Time ---
-                let timeParts = appt.appointment_time.split(':');
-                let formattedTime = new Date(0, 0, 0, timeParts[0], timeParts[1]).toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: true });
-
-                // --- Safe Variables ---
+                // Standard Fields
                 let phoneSafe = appt.client_phone || '';
                 let dateSafe = appt.appointment_date;
                 let timeSafe = appt.appointment_time;
+                let formattedTime = new Date('1970-01-01T' + timeSafe).toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: true });
 
-                // --- ACTIONS LOGIC (The Fix) ---
+                // Actions Logic
                 let actionsColumnContent = '';
-
                 if (appt.status === 'Completed') {
-                    // CASE 1: If Moved to Billing -> Show NO Actions (or a simple text)
                     actionsColumnContent = '<span class="text-muted small fst-italic"><i class="fas fa-check-circle me-1"></i>Billed</span>';
                 } else {
-                    // CASE 2: If Scheduled/Cancelled -> Show All Buttons
                     actionsColumnContent = `
-                        <button class="btn btn-sm btn-warning text-dark me-1 view-bill-btn" data-id="${appt.id}" title="Edit Services">
-                            <i class="fas fa-list-ul"></i>
-                        </button>
+                        <button class="btn btn-sm btn-warning text-dark me-1 view-bill-btn" data-id="${appt.id}" title="Edit Services"><i class="fas fa-list-ul"></i></button>
+                        <button class="btn btn-sm btn-info text-white me-1 edit-btn" data-id="${appt.id}" title="Edit Details"><i class="fas fa-edit"></i></button>
                         
-                        <button class="btn btn-sm btn-info text-white me-1 edit-btn" data-id="${appt.id}" title="Edit Details">
-                            <i class="fas fa-edit"></i>
-                        </button>
-
                         <button class="btn btn-sm btn-indigo text-white me-1 move-bill-btn" 
                                 data-id="${appt.id}"
                                 data-name="${appt.client_name}" 
                                 data-phone="${phoneSafe}" 
                                 data-services="${appt.service_details}" 
-                                data-total="${appt.total_price}" 
+                                data-net="${netTotal}" 
+                                data-discount="${discountPercent}"
                                 data-datesafe="${dateSafe}" 
                                 data-timesafe="${timeSafe}"
                                 title="Checkout">
                             <i class="fas fa-file-import"></i>
                         </button>
                         
-                        <button class="btn btn-sm btn-danger" onclick="deleteGroupAppt('${phoneSafe}', '${dateSafe}', '${timeSafe}')" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteGroupAppt('${phoneSafe}', '${dateSafe}', '${timeSafe}')" title="Delete"><i class="fas fa-trash"></i></button>
                     `;
                 }
 
-                // --- Build Row HTML ---
                 rows += `
                 <tr>
                     <td class="fw-bold text-primary">#${appt.id}</td>
                     <td><i class="far fa-clock text-muted me-1"></i> ${formattedTime}</td>
-                    <td>
-                        <div class="fw-bold">${appt.client_name}</div>
-                        <small class="text-muted">${phoneSafe}</small>
-                    </td>
+                    <td><div class="fw-bold">${appt.client_name}</div><small class="text-muted">${phoneSafe}</small></td>
                     <td><small>${appt.gender} / ${appt.client_type}</small></td>
                     <td class="text-indigo fw-medium"><small>${appt.employee_name}</small></td>
                     <td>
                         <div style="font-size: 0.85rem; margin-bottom: 4px;">${appt.service_details}</div>
-                        <div class="fw-bold text-success border-top pt-1" style="font-size: 0.9rem;">
-                            Total: ₹${parseFloat(appt.total_price || 0).toFixed(2)}
-                        </div>
+                        ${priceHTML}
                     </td>
                     <td>${statusBadge}</td>
-                    
                     <td>${actionsColumnContent}</td>
                 </tr>`;
             });
@@ -295,7 +294,11 @@ function loadDropdownData() {
 }
 
 function openModalForNew() {
-    resetSearch();
+    // 1. Capture what the user typed in the search box
+    let typedValue = $('#customerSearchInput').val().trim();
+
+    // 2. Standard Reset (hides search, clears form)
+    resetSearch(); 
     $('#customerSearchSection').slideUp();
     $('#apptForm')[0].reset();
     $('#apptId').val('');
@@ -304,6 +307,22 @@ function openModalForNew() {
     $('#submitBtn').text('Confirm Booking').removeClass('btn-warning').addClass('btn-primary');
     $('#statusDiv').hide();
     $('#apptDate').val($('#dateFilter').val());
+
+    // 3. AUTO-FILL LOGIC
+    if (typedValue) {
+        // Check if the input contains only numbers (and symbols like + or -)
+        // If yes -> It's a Phone Number
+        // If no (has letters) -> It's a Name
+        let isPhoneNumber = /^[0-9\-\+\s]+$/.test(typedValue);
+
+        if (isPhoneNumber) {
+            $('#clientPhone').val(typedValue);
+        } else {
+            $('#clientName').val(typedValue);
+        }
+    }
+
+    // 4. Show Modal
     $('#apptModal').modal('show');
 }
 
@@ -352,13 +371,72 @@ function selectCustomer(clientData) {
 }
 
 function loadCustomerHistory(phone) {
-    $('#histVisits').text('Loading...');
+    // 1. Reset UI to Loading State
+    $('#histVisits').text('...');
+    $('#histSpent').text('...');
+    $('#clientInsightsBody').html('<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Checking records...</div>');
+
+    // 2. Fetch Data
     $.post('api.php', { action: 'fetch_client_history', client_phone: phone }, function(data) {
         let stats = data.stats;
-        $('#histVisits').text(stats.visit_count > 0 ? stats.visit_count : 'New');
-        $('#histFirst').text(stats.first_visit || '--');
-        $('#histLast').text(stats.last_visit || '--');
+        let last = data.last_visit;
+
+        // --- UPDATE STATS CARD ---
+        $('#histVisits').text(stats.visit_count > 0 ? stats.visit_count : '0');
         $('#histSpent').text('₹' + (parseFloat(stats.total_spent) || 0).toFixed(2));
+
+        // --- UPDATE INSIGHTS CARD (The Logic) ---
+        let insightsHTML = '';
+
+        if (!last || stats.visit_count == 0) {
+            // CASE: NEW CLIENT
+            insightsHTML = `
+                <div class="alert alert-success mb-0 text-center border-0 bg-success bg-opacity-10">
+                    <div class="fs-1">🌟</div>
+                    <div class="fw-bold text-success">New Client</div>
+                    <small class="text-muted">First time visit!</small>
+                </div>`;
+        } else {
+            // CASE: RETURNING CLIENT
+            
+            // Calculate previous bill totals
+            let gross = parseFloat(last.gross_total || 0);
+            let discPerc = parseInt(last.discount_percent || 0);
+            let net = gross - ((gross * discPerc) / 100);
+
+            // Discount Badge Logic
+            let discountBadge = '';
+            if (discPerc > 0) {
+                discountBadge = `<div class="badge bg-danger mb-2 w-100">Last Bill had ${discPerc}% Discount</div>`;
+            } else {
+                discountBadge = `<div class="badge bg-light text-muted border mb-2 w-100">No Discount on Last Bill</div>`;
+            }
+
+            insightsHTML = `
+                ${discountBadge}
+                
+                <div class="mb-2">
+                    <small class="text-muted fw-bold text-uppercase" style="font-size:10px;">Last Visit Date</small>
+                    <div class="fw-bold">${last.appointment_date}</div>
+                </div>
+
+                <div class="mb-2">
+                    <small class="text-muted fw-bold text-uppercase" style="font-size:10px;">Last Services</small>
+                    <div class="text-dark small" style="line-height:1.2;">${last.services}</div>
+                </div>
+
+                <div class="mt-3 pt-2 border-top d-flex justify-content-between align-items-center">
+                    <small class="text-muted">Last Bill:</small>
+                    <div class="text-end">
+                        ${discPerc > 0 ? `<small class="text-decoration-line-through text-muted me-1">₹${gross}</small>` : ''}
+                        <span class="fw-bold text-primary">₹${net.toFixed(0)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        $('#clientInsightsBody').html(insightsHTML);
+
     }, 'json');
 }
 
@@ -402,10 +480,29 @@ function calculateRowTotal(rowId) {
     row.find('.total-input').val(price.toFixed(2));
     calculateGrandTotal();
 }
+
+// --- CALCULATIONS & SAVING ---
+
 function calculateGrandTotal() {
-    let grandTotal = 0;
-    $('#serviceCartBody tr').each(function() { grandTotal += parseFloat($(this).find('.total-input').val()) || 0; });
-    $('#headerNet').text('₹' + grandTotal.toFixed(2));
+    let subTotal = 0;
+    $('#serviceCartBody tr').each(function() { 
+        subTotal += parseFloat($(this).find('.total-input').val()) || 0; 
+    });
+
+    // Get Discount Percent
+    let discPercent = parseInt($('#advDiscount').val()) || 0;
+    let discAmount = (subTotal * discPercent) / 100;
+    let finalTotal = subTotal - discAmount;
+
+    // Update Header
+    $('#headerNet').text('₹' + finalTotal.toFixed(2));
+    
+    // Show/Hide Original Price (Strike-through)
+    if(discPercent > 0) {
+        $('#headerGross').text('₹' + subTotal.toFixed(2)).show();
+    } else {
+        $('#headerGross').hide();
+    }
 }
 
 function saveAdvancedBooking() {
@@ -429,6 +526,7 @@ function saveAdvancedBooking() {
         client_type: selectedCustomerData.client_type,
         appointment_date: $('#advDate').val(),
         appointment_time: tempBookingTime, 
+        discount_percent: $('#advDiscount').val(), // Save Discount
         services: services
     };
 
@@ -457,21 +555,23 @@ function viewBilling(appt) {
     tempBookingTime = appt.appointment_time;
     selectedCustomerData = { client_name: appt.client_name, client_phone: appt.client_phone, gender: appt.gender, client_type: appt.client_type };
     $('#serviceCartBody').html('');
-    $.post('api.php', { action: 'fetch_group_details', date: appt.appointment_date, time: appt.appointment_time, phone: appt.client_phone }, function(items) {
+    
+    $.post('api.php', { action: 'fetch_group_details', date: appt.appointment_date, time: appt.appointment_time, phone: appt.client_phone }, function(data) {
+        let items = data.items;
+        $('#advDiscount').val(data.discount || 0); // Load saved discount
         items.forEach(function(item) { addServiceRowWithData(item); });
         calculateGrandTotal();
     }, 'json');
+    
     loadCustomerHistory(appt.client_phone);
     openBillingView();
 }
 
 function openBillingView() { $('#mainDashboardView').addClass('d-none'); $('#billingView').removeClass('d-none'); }
 function closeBillingView() { $('#billingView').addClass('d-none'); $('#mainDashboardView').removeClass('d-none'); }
-// =========================================================
-// PRICE BASED SERVICE FILTER (Reverse Search)
-// =========================================================
 
-// Debounce helper (prevents too many API calls)
+
+// 1. Debounce Function (Prevents spamming server while typing)
 function debounce(fn, delay) {
     let timer = null;
     return function () {
@@ -481,64 +581,82 @@ function debounce(fn, delay) {
     };
 }
 
-// Listen for typing in PRICE field
+// 2. Listen for typing in PRICE field
 $(document).on('input', '.price-input', debounce(function () {
-
-    console.log("PRICE FILTER TRIGGERED");
-
     const $priceInput = $(this);
     const priceRaw = $priceInput.val().trim();
     const $row = $priceInput.closest('tr');
     const $svcDropdown = $row.find('.svc-select');
 
-    // If empty or not a number → Reset dropdown
+    // If empty or not a number -> Reset dropdown to show ALL services
+    // We rely on the global 'serviceOptionsHTML' variable we loaded earlier
     if (priceRaw === '' || isNaN(parseFloat(priceRaw))) {
         $svcDropdown.html(serviceOptionsHTML);
+        // If Select2 is active, we need to refresh it
+        if ($svcDropdown.hasClass('select2-hidden-accessible')) {
+            $svcDropdown.trigger('change.select2');
+        }
         return;
     }
 
     const price = parseFloat(priceRaw);
 
-    // Temporary "Searching..." indicator
+    // Show "Searching..."
     $svcDropdown.html('<option>Searching...</option>');
 
-    // AJAX request to appointments/api.php
-    $.post(
-        'api.php',
-        { action: 'search_services_by_price', price: price },
-        function (data) {
+    // AJAX request
+    $.post('api.php', { action: 'search_services_by_price', price: price }, function (data) {
+        $svcDropdown.empty();
 
-            console.log("SERVICE SEARCH RESPONSE:", data);
-
-            $svcDropdown.empty();
-
-            // No matches found
-            if (!Array.isArray(data) || data.length === 0) {
-                $svcDropdown.append('<option value="">No services found</option>');
-                return;
-            }
-
+        // No matches found
+        if (!Array.isArray(data) || data.length === 0) {
+            $svcDropdown.append('<option value="">No services found for ₹' + price + '</option>');
+        } else {
             // Populate dropdown with filtered services
+            $svcDropdown.append('<option value="">Select Service (Found ' + data.length + ')</option>');
+            
             data.forEach(s => {
                 const dprice = s.price ? parseFloat(s.price).toFixed(2) : '0.00';
-                $svcDropdown.append(
-                    `<option value="${s.id}" data-price="${dprice}">${s.service_name}</option>`
-                );
+                // Note: We include the price in the text so user confirms it matches
+                $svcDropdown.append(`<option value="${s.id}" data-price="${dprice}">${s.service_name} - ₹${dprice}</option>`);
             });
-
-        },
-        'json'
-    )
-    .fail(function (xhr, status, error) {
-
-        console.log("PRICE FILTER AJAX FAILED");
-        console.log("STATUS:", status);
-        console.log("ERROR:", error);
-        console.log("RESPONSE TEXT:", xhr.responseText);
-
+        }
+        
+        // If Select2 is active, refresh it
+        if ($svcDropdown.hasClass('select2-hidden-accessible')) {
+            $svcDropdown.trigger('change'); // Updates Select2 UI
+        }
+    }, 'json')
+    .fail(function () {
         $svcDropdown.html('<option value="">Error fetching services</option>');
     });
 
-}, 300)); // 300ms debounce delay
+}, 300)); // 300ms delay
 
-console.log("PRICE FILTER SCRIPT LOADED SUCCESSFULLY");
+/* modules/appointments/script.js */
+
+// ... (Existing code) ...
+
+// NEW: Date Navigation Logic
+function changeDate(days) {
+    // 1. Get current date from input
+    let $input = $('#dateFilter');
+    let currentVal = $input.val();
+    
+    // 2. Create Date Object
+    let dateObj = new Date(currentVal);
+    
+    // 3. Add or Subtract Days
+    dateObj.setDate(dateObj.getDate() + days);
+    
+    // 4. Format back to YYYY-MM-DD
+    // Note: We use .toLocaleDateString to avoid timezone issues
+    let year = dateObj.getFullYear();
+    let month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    let day = String(dateObj.getDate()).padStart(2, '0');
+    let newDate = `${year}-${month}-${day}`;
+    
+    // 5. Update Input and Trigger Change
+    // This automatically calls loadDashboardAndTable because of your existing .on('change') listener
+    $input.val(newDate).trigger('change');
+}

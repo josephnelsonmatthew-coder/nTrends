@@ -32,6 +32,9 @@ if (!isset($_SESSION['user_id'])) {
         /* Payment Modal Styles */
         .btn-indigo { background-color: #4f46e5; color: white; }
         .btn-indigo:hover { background-color: #4338ca; color: white; }
+        .btn-check:checked + .btn-outline-success { background-color: #198754; color: white; }
+        .btn-check:checked + .btn-outline-primary { background-color: #0d6efd; color: white; }
+        .btn-check:checked + .btn-outline-secondary { background-color: #6c757d; color: white; }
     </style>
 </head>
 <body>
@@ -74,10 +77,22 @@ if (!isset($_SESSION['user_id'])) {
 
                 <div class="card shadow-sm mb-4">
                     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
-                        <div class="d-flex align-items-center bg-white rounded border p-1">
-                            <span class="input-group-text border-0 bg-transparent"><i class="fas fa-calendar-alt text-muted"></i></span>
-                            <input type="date" id="dateFilter" class="form-control border-0 shadow-none" value="<?php echo date('Y-m-d'); ?>">
-                        </div>
+                        <div class="d-flex align-items-center bg-white rounded border shadow-sm p-1">
+    <button class="btn btn-sm btn-light border-0 text-muted" onclick="changeDate(-1)" title="Previous Day">
+        <i class="fas fa-chevron-left"></i>
+    </button>
+
+    <div class="d-flex align-items-center border-start border-end mx-1 px-2">
+        <span class="text-primary me-2"><i class="fas fa-calendar-alt"></i></span>
+        <input type="date" id="dateFilter" class="form-control form-control-sm border-0 shadow-none fw-bold p-0 text-center" 
+               style="width: 110px; cursor: pointer;" 
+               value="<?php echo date('Y-m-d'); ?>">
+    </div>
+
+    <button class="btn btn-sm btn-light border-0 text-muted" onclick="changeDate(1)" title="Next Day">
+        <i class="fas fa-chevron-right"></i>
+    </button>
+</div>
                         <button class="btn btn-primary px-4 py-2" onclick="toggleSearchSection()">
                             <i class="fas fa-plus-circle me-2"></i> Book an Appointment
                         </button>
@@ -151,14 +166,31 @@ if (!isset($_SESSION['user_id'])) {
                                         <div class="avatar-circle me-3 bg-success text-white" style="width:50px; height:50px; font-size:20px;"><i class="fas fa-user"></i></div>
                                         <div><h5 class="mb-0 fw-bold" id="advCustName">Name</h5><div class="text-muted" id="advCustPhone">--</div></div>
                                     </div>
-                                    <div class="col-md-3 border-end">
+                                    
+                                    <div class="col-md-2 border-end">
                                         <label class="small text-muted fw-bold">Date</label>
                                         <input type="date" class="form-control form-control-sm border-0 bg-transparent fw-bold p-0" id="advDate" value="<?php echo date('Y-m-d'); ?>">
                                     </div>
-                                    <div class="col-md-5">
+
+                                    <div class="col-md-3 border-end">
+                                        <label class="small text-muted fw-bold">Discount (%)</label>
+                                        <select class="form-select form-select-sm fw-bold border-primary text-primary" id="advDiscount" onchange="calculateGrandTotal()">
+                                            <option value="0">No Discount</option>
+                                            <option value="5">5% Off</option>
+                                            <option value="10">10% Off</option>
+                                            <option value="15">15% Off</option>
+                                            <option value="20">20% Off</option>
+                                            <option value="25">25% Off</option>
+                                            <option value="30">30% Off</option>
+                                            <option value="35">35% Off</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-3">
                                         <div class="text-end">
-                                            <small class="text-muted d-block">Total Amount</small>
-                                            <span class="fw-bold text-primary fs-3" id="headerNet">₹0.00</span>
+                                            <small class="text-muted d-block">Net Payable</small>
+                                            <span class="fw-bold text-success fs-3" id="headerNet">₹0.00</span>
+                                            <div class="small text-decoration-line-through text-muted" id="headerGross" style="display:none; font-size: 12px;">₹0.00</div>
                                         </div>
                                     </div>
                                 </div>
@@ -168,7 +200,7 @@ if (!isset($_SESSION['user_id'])) {
                         <div class="card shadow-sm border-0">
                             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                                 <span><i class="fas fa-list me-2"></i>Services Cart</span>
-                                <button class="btn btn-sm btn-success" onclick="addNewServiceRow()"><i class="fas fa-plus me-1"></i> Add Row</button>
+                                <button class="btn btn-sm btn-success" onclick="addNewServiceRow()"><i class="fas fa-plus me-1"></i> Add Services</button>
                             </div>
                             <div class="card-body p-0">
                                 <table class="table table-bordered align-middle mb-0" id="serviceCartTable">
@@ -185,16 +217,24 @@ if (!isset($_SESSION['user_id'])) {
                     </div>
 
                     <div class="col-md-3">
-                         <div class="card shadow-sm mb-3 border-top border-4 border-primary">
-                            <div class="card-header bg-white fw-bold"><i class="fas fa-history me-2 text-primary"></i>History</div>
-                            <div class="card-body p-3 small">
-                                <div class="d-flex justify-content-between mb-2 border-bottom pb-1"><span class="text-muted">Visits:</span><span class="fw-bold text-danger" id="histVisits">--</span></div>
-                                <div class="d-flex justify-content-between mb-2 border-bottom pb-1"><span class="text-muted">First:</span><span class="fw-bold" id="histFirst">--</span></div>
-                                <div class="d-flex justify-content-between mb-2 border-bottom pb-1"><span class="text-muted">Last:</span><span class="fw-bold" id="histLast">--</span></div>
-                                <div class="d-flex justify-content-between mb-2 border-bottom pb-1"><span class="text-muted">Total:</span><span class="fw-bold text-success" id="histSpent">₹0</span></div>
-                            </div>
-                        </div>
-                    </div>
+    
+    <div class="card shadow-sm mb-3 border-top border-4 border-info">
+        <div class="card-header bg-white fw-bold">
+            <i class="fas fa-lightbulb me-2 text-info"></i>Client Insights
+        </div>
+        <div class="card-body p-3" id="clientInsightsBody">
+            <div class="text-center text-muted small">Loading...</div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3 border-top border-4 border-primary">
+        <div class="card-header bg-white fw-bold"><i class="fas fa-history me-2 text-primary"></i>History Stats</div>
+        <div class="card-body p-3 small">
+            <div class="d-flex justify-content-between mb-2 border-bottom pb-1"><span class="text-muted">Visits:</span><span class="fw-bold text-dark" id="histVisits">--</span></div>
+            <div class="d-flex justify-content-between mb-2 border-bottom pb-1"><span class="text-muted">Total Spent:</span><span class="fw-bold text-success" id="histSpent">₹0</span></div>
+        </div>
+    </div>
+</div>
                 </div>
 
                 <div class="d-flex justify-content-end mt-4 p-3 bg-white shadow-sm rounded">
@@ -223,7 +263,10 @@ if (!isset($_SESSION['user_id'])) {
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-6"><label class="form-label">Name</label><input type="text" class="form-control" name="client_name" id="clientName" required></div>
-                            <div class="col-md-6"><label class="form-label">Phone</label><input type="text" class="form-control" name="client_phone" id="clientPhone"></div>
+                            <div class="col-md-6">
+    <label class="form-label">Phone</label>
+    <input type="tel" class="form-control" name="client_phone" id="clientPhone" pattern="[0-9]*" inputmode="numeric">
+</div>
                         </div>
                          <div class="row mb-3">
                              <div class="col-md-6"><label class="form-label">Gender</label><select class="form-select" name="gender" id="clientGender" required><option value="Male">Male</option><option value="Female">Female</option></select></div>
@@ -242,45 +285,61 @@ if (!isset($_SESSION['user_id'])) {
         </div>
     </div>
 
-    <div class="modal fade" id="moveBillModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
+    <div class="modal fade" id="checkoutModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
                 <div class="modal-header bg-indigo text-white">
-                     <h5 class="modal-title"><i class="fas fa-file-invoice-dollar me-2"></i>Finalize Bill</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title"><i class="fas fa-wallet me-2"></i>Checkout & Payment</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body font-monospace">
-                    <div class="mb-3 border-bottom pb-2">
-                        <h6 class="fw-bold text-muted mb-1">Customer Details</h6>
-                        <div id="billClientName" class="fw-bold fs-5"></div>
-                        <div id="billClientPhone" class="text-muted small"></div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-4">
+                        <h6 class="text-muted text-uppercase small ls-1">Total Payable Amount</h6>
+                        <h1 class="fw-bold text-success display-4" id="payModalTotal">₹0.00</h1>
+                        <div id="payModalDiscount" class="badge bg-warning text-dark mt-2" style="display:none;"></div>
                     </div>
-                    <div class="mb-3">
-                        <h6 class="fw-bold text-muted mb-2">Services Summary</h6>
-                        <div id="billServicesList" class="ps-2"></div>
-                    </div>
-                    <div class="alert alert-success d-flex justify-content-between align-items-center mt-3 mb-0">
-                        <span class="fw-bold">Grand Total To Pay:</span>
-                        <span id="billGrandTotal" class="fs-4 fw-bold"></span>
-                    </div>
-                    <div id="paymentOptionsSection" class="mt-4" style="display:none;">
-                        <h6 class="text-center text-muted mb-3">- Select Payment Method -</h6>
-                        <div class="d-flex justify-content-center">
-                            <button class="btn btn-outline-dark p-3 d-flex align-items-center gap-2" id="gpayBtn" style="border-radius: 12px;">
-                                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/2560px-Google_Pay_Logo.svg.png" alt="GPay" height="24">
-                            </button>
+
+                    <div class="card bg-light border-0 mb-4">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Customer:</span>
+                                <span class="fw-bold" id="payModalName">--</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Services:</span>
+                                <span class="text-end small" id="payModalServices">--</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer bg-light">
-                    <input type="hidden" id="hiddenBillPhone">
-                    <input type="hidden" id="hiddenBillDate">
-                    <input type="hidden" id="hiddenBillTime">
-                    <button type="button" class="btn btn-indigo text-white w-100 py-2" id="btnGenerateBillStep">
-                        <i class="fas fa-cog me-2"></i>Generate Final Bill
-                    </button>
-                    <button type="button" class="btn btn-success w-100 py-2" id="btnFinalCheckout" style="display:none;">
-                        <i class="fas fa-check-circle me-2"></i>Confirm Checkout & Move
+
+                    <h6 class="fw-bold mb-3">Select Payment Method:</h6>
+                    <div class="row g-2 mb-4" id="paymentMethodGrid">
+                        <div class="col-4">
+                            <input type="radio" class="btn-check" name="payMethod" id="pm_cash" value="Cash" checked>
+                            <label class="btn btn-outline-secondary w-100 py-3" for="pm_cash">
+                                <i class="fas fa-money-bill-wave fa-lg d-block mb-2"></i>Cash
+                            </label>
+                        </div>
+                        <div class="col-4">
+                            <input type="radio" class="btn-check" name="payMethod" id="pm_gpay" value="GPay">
+                            <label class="btn btn-outline-success w-100 py-3" for="pm_gpay">
+                                <i class="fab fa-google-pay fa-lg d-block mb-2"></i>GPay
+                            </label>
+                        </div>
+                        <div class="col-4">
+                            <input type="radio" class="btn-check" name="payMethod" id="pm_card" value="Card">
+                            <label class="btn btn-outline-primary w-100 py-3" for="pm_card">
+                                <i class="fas fa-credit-card fa-lg d-block mb-2"></i>Card
+                            </label>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="payHiddenPhone">
+                    <input type="hidden" id="payHiddenDate">
+                    <input type="hidden" id="payHiddenTime">
+
+                    <button type="button" class="btn btn-success w-100 py-3 fw-bold shadow-sm" id="btnConfirmPayment">
+                        <i class="fas fa-check-circle me-2"></i>Confirm Payment & Close Bill
                     </button>
                 </div>
             </div>

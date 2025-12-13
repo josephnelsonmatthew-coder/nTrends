@@ -10,7 +10,7 @@ if (!$phone || !$date || !$time) die("Invalid Invoice Request.");
 
 // Fetch Data
 $sql = "SELECT a.id, a.appointment_date, a.appointment_time, a.client_name, a.client_phone, 
-               e.name as employee_name, s.service_name, s.price
+               e.name as employee_name, s.service_name, s.price, a.discount_percent
         FROM appointments a
         LEFT JOIN employees e ON a.employee_id = e.id
         LEFT JOIN services s ON a.service_id = s.id
@@ -26,7 +26,14 @@ $clientName = $items[0]['client_name'];
 $clientPhone = $items[0]['client_phone'];
 $billDate = date('d/m/Y h:i A', strtotime($items[0]['appointment_date'] . ' ' . $items[0]['appointment_time']));
 $billId = $items[0]['id'];
+
+// --- CALCULATIONS ---
 $grandTotal = 0;
+foreach($items as $item) { $grandTotal += $item['price']; }
+
+$discountPercent = $items[0]['discount_percent'] ?? 0;
+$discountAmount = ($grandTotal * $discountPercent) / 100;
+$finalPayable = $grandTotal - $discountAmount;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -39,25 +46,17 @@ $grandTotal = 0;
         .logo { font-size: 28px; font-weight: bold; color: #444; letter-spacing: -1px; }
         .sub-logo { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-top: -5px; display: block; }
         .address { font-size: 11px; margin-top: 10px; line-height: 1.4; border-bottom: 1px solid #000; padding-bottom: 10px; }
-        
         .client-info { font-size: 12px; margin: 15px 0; line-height: 1.6; }
         .label { display: inline-block; width: 80px; }
-
         .table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 15px; }
         .table th { border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 5px 0; text-align: left; }
         .table td { padding: 8px 0; }
         .text-right { text-align: right; }
-
         .totals { font-size: 13px; border-top: 1px solid #000; padding-top: 10px; }
         .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
         .grand-row { font-weight: bold; font-size: 16px; margin-top: 10px; }
-
         .footer { text-align: center; font-size: 10px; margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px; }
-        
-        @media print {
-            body { border: none; }
-            .no-print { display: none; }
-        }
+        @media print { body { border: none; } .no-print { display: none; } }
     </style>
 </head>
 <body>
@@ -91,7 +90,7 @@ $grandTotal = 0;
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($items as $item): $grandTotal += $item['price']; ?>
+            <?php foreach ($items as $item): ?>
             <tr>
                 <td><?php echo htmlspecialchars($item['service_name']); ?></td>
                 <td>1</td>
@@ -103,9 +102,17 @@ $grandTotal = 0;
     </table>
 
     <div class="totals">
-        <div class="row"><span>Net Amount</span><span><?php echo number_format($grandTotal, 2); ?></span></div>
+        <div class="row"><span>Sub Total</span><span><?php echo number_format($grandTotal, 2); ?></span></div>
+        
+        <?php if ($discountPercent > 0): ?>
+        <div class="row">
+            <span>Discount (<?php echo $discountPercent; ?>%)</span>
+            <span>- <?php echo number_format($discountAmount, 2); ?></span>
+        </div>
+        <?php endif; ?>
+
         <div class="row"><span>Tax (0%)</span><span>0.00</span></div>
-        <div class="row grand-row"><span>BILL AMOUNT</span><span>₹<?php echo number_format($grandTotal, 2); ?></span></div>
+        <div class="row grand-row"><span>BILL AMOUNT</span><span>₹<?php echo number_format($finalPayable, 2); ?></span></div>
     </div>
 
     <div class="footer">

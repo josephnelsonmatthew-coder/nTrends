@@ -2,74 +2,114 @@
 // modules/reports/export.php
 require '../../config/db.php';
 
-// 1. Get Filters (Defaults to All Time if empty)
-$startDate = $_GET['start_date'] ?? null;
-$endDate   = $_GET['end_date'] ?? null;
+// Get report type
+$type = $_GET['type'] ?? '';
+$type = in_array($type, ['employee', 'service']) ? $type : 'employee';
 
-// 2. Build SQL Query
-$sql = "SELECT 
-            a.id, 
-            a.appointment_date, 
-            a.appointment_time, 
-            a.client_name, 
-            a.client_phone, 
-            a.gender, 
-            a.client_type, 
-            e.name as stylist, 
-            s.service_name, 
-            s.price, 
-            a.status 
-        FROM appointments a
-        JOIN employees e ON a.employee_id = e.id
-        JOIN services s ON a.service_id = s.id";
+// Excel headers
+header("Content-Type: application/vnd.ms-excel");
+header("Content-Disposition: attachment; filename={$type}_report.xls");
+header("Pragma: no-cache");
+header("Expires: 0");
 
-$params = [];
+echo "<table border='1' cellpadding='6'>";
 
-// Apply Date Filter if provided
-if ($startDate && $endDate) {
-    $sql .= " WHERE a.appointment_date BETWEEN ? AND ?";
-    $params[] = $startDate;
-    $params[] = $endDate;
+/* =====================================================
+   EMPLOYEE BASED REPORT
+===================================================== */
+if ($type === 'employee') {
+
+    $employeeId = $_GET['employee_id'] ?? '';
+
+    echo "<tr style='font-weight:bold; background:#f2f2f2;'>
+            <th>Date</th>
+            <th>Employee Name</th>
+            <th>Service Name</th>
+            <th>Service Price</th>
+            <th>Total Revenue (Employee)</th>
+          </tr>";
+
+    $sql = "SELECT 
+                a.appointment_date,
+                e.name AS employee_name,
+                s.service_name,
+                s.price AS service_price,
+                totals.total_revenue
+            FROM appointments a
+            JOIN employees e ON a.employee_id = e.id
+            JOIN services s ON a.service_id = s.id
+
+            /* Subquery to calculate total revenue per employee */
+            JOIN (
+                SELECT 
+                    employee_id,
+                    SUM(s2.price) AS total_revenue
+                FROM appointments a2
+                JOIN services s2 ON a2.service_id = s2.id
+                WHERE a2.status = 'Completed'
+                GROUP BY employee_id
+            ) totals ON totals.employee_id = e.id
+
+            WHERE a.status = 'Completed'";
+
+    $params = [];
+
+    // ✅ Filter by specific employee if selected
+    if (!empty($employeeId)) {
+        $sql .= " AND e.id = ?";
+        $params[] = $employeeId;
+    }
+
+    $sql .= " ORDER BY e.name ASC, a.appointment_date DESC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        echo "<tr>
+                <td>{$row['appointment_date']}</td>
+                <td>{$row['employee_name']}</td>
+                <td>{$row['service_name']}</td>
+                <td>{$row['service_price']}</td>
+                <td>{$row['total_revenue']}</td>
+              </tr>";
+    }
 }
 
-$sql .= " ORDER BY a.appointment_date DESC";
 
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// 3. Set Headers to Force Download as CSV (Excel readable)
-$filename = "salon_report_" . date('Y-m-d') . ".csv";
 
-header('Content-Type: text/csv');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
-header('Pragma: no-cache');
-header('Expires: 0');
+/* =====================================================
+   SERVICE BASED REPORT (MOST DONE SERVICES)
+===================================================== */
+if ($type === 'service') {
 
-// 4. Open Output Stream
-$output = fopen('php://output', 'w');
+    echo "<tr style='font-weight:bold; background:#f2f2f2;'>
+            <th>Service Name</th>
+            <th>Times Done</th>
+            <th>Total Revenue</th>
+          </tr>";
 
-// 5. Add Column Headers
-fputcsv($output, [
-    'Appointment ID', 
-    'Date', 
-    'Time', 
-    'Client Name', 
-    'Phone Number', 
-    'Gender', 
-    'Client Type', 
-    'Stylist', 
-    'Service', 
-    'Price', 
-    'Status'
-]);
+    $sql = "SELECT 
+                s.service_name,
+                COUNT(a.id) AS total_count,
+                COALESCE(SUM(s.price),0) AS total_revenue
+            FROM appointments a
+            JOIN services s ON a.service_id = s.id
+            WHERE a.status = 'Completed'
+            GROUP BY s.id
+            ORDER BY total_count DESC";
 
-// 6. Loop and Add Data Rows
-foreach ($data as $row) {
-    fputcsv($output, $row);
+    $stmt = $pdo->query($sql);
+
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        echo "<tr>
+                <td>{$row['service_name']}</td>
+                <td>{$row['total_count']}</td>
+                <td>{$row['total_revenue']}</td>
+              </tr>";
+    }
 }
 
-// 7. Close Stream
-fclose($output);
+echo "</table>";
 exit;
-?>
