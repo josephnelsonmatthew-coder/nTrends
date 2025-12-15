@@ -1,4 +1,4 @@
-# nTrends - Salon & Clinic Management System
+# nTrends - Salon Management System
 
 **nTrends** is a comprehensive web-based management system designed for salons and clinics. It streamlines daily operations including appointment scheduling, billing, inventory management, employee tracking, and reporting.
 
