@@ -4,10 +4,13 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 // -------------------------------------
-session_start();
-require 'config/db.php'; // Ensure path is correct relative to root
+require 'config/security.php'; // Includes session_start() and CSRF helpers
+require 'config/db.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Verify CSRF
+    verify_csrf_token($_POST['csrf_token'] ?? '');
+
     $username = trim($_POST['username']);
     $password = $_POST['password'];
 
@@ -21,7 +24,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Success: Set Session
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
-        
+
         // Redirect to Appointments Module
         header("Location: modules/appointments/index.php");
         exit;

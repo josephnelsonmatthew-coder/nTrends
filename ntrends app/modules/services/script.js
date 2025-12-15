@@ -1,10 +1,17 @@
-$(document).ready(function() {
+// modules/services/script.js
+
+// Global AJAX Setup for CSRF
+$.ajaxSetup({
+    headers: { 'X-CSRF-Token': CSRF_TOKEN }
+});
+
+$(document).ready(function () {
     loadServices();
 
     // Handle Form Submit
-    $('#serviceForm').submit(function(e) {
+    $('#serviceForm').submit(function (e) {
         e.preventDefault();
-        
+
         let $btn = $('#submitBtn');
         let originalText = $btn.text();
         $btn.prop('disabled', true).text('Saving...');
@@ -14,8 +21,8 @@ $(document).ready(function() {
             type: 'POST',
             data: $(this).serialize(),
             dataType: 'json',
-            success: function(res) {
-                if(res.status === 'success') {
+            success: function (res) {
+                if (res.status === 'success') {
                     $('#serviceModal').modal('hide');
                     loadServices();
                     Swal.fire('Success', 'Saved successfully!', 'success');
@@ -23,10 +30,10 @@ $(document).ready(function() {
                     Swal.fire('Error', 'Operation failed.', 'error');
                 }
             },
-            error: function() {
+            error: function () {
                 Swal.fire('Error', 'Server connection failed.', 'error');
             },
-            complete: function() {
+            complete: function () {
                 $btn.prop('disabled', false).text(originalText);
             }
         });
@@ -36,9 +43,9 @@ $(document).ready(function() {
 
 // Load Data
 function loadServices() {
-    $.post('api.php', { action: 'fetch' }, function(data) {
+    $.post('api.php', { action: 'fetch' }, function (data) {
         let rows = '';
-        data.forEach(function(svc) {
+        data.forEach(function (svc) {
             rows += `
                 <tr>
                     <td><strong>${svc.service_name}</strong></td>
@@ -57,7 +64,10 @@ function loadServices() {
             `;
         });
         $('#serviceTableBody').html(rows);
-    }, 'json');
+    }, 'json').fail(function (xhr) {
+        console.error('Failed to load services:', xhr.responseText);
+        Swal.fire('Error', 'Failed to load services. Please refresh.', 'error');
+    });
 }
 
 // Open Modal for New Entry
@@ -75,7 +85,7 @@ function editService(svc) {
     $('#serviceId').val(svc.id);
     $('#serviceName').val(svc.service_name);
     $('#servicePrice').val(svc.price);
-    
+
     $('#formAction').val('update');
     $('#modalTitle').text('Edit Service');
     $('#submitBtn').text('Update Service').removeClass('btn-success').addClass('btn-warning');
@@ -93,8 +103,8 @@ function deleteService(id) {
         confirmButtonText: 'Yes, delete it!'
     }).then((result) => {
         if (result.isConfirmed) {
-            $.post('api.php', { action: 'delete', id: id }, function(res) {
-                if(res.status === 'success') {
+            $.post('api.php', { action: 'delete', id: id }, function (res) {
+                if (res.status === 'success') {
                     loadServices();
                     Swal.fire('Deleted!', 'Service has been removed.', 'success');
                 } else {

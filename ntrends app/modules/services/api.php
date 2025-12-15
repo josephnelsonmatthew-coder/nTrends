@@ -1,8 +1,17 @@
 <?php
 // modules/services/api.php
+require '../../config/security.php';
 require '../../config/db.php'; // Connection to database
 
 header('Content-Type: application/json');
+
+// Security Checks
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+    exit;
+}
+verify_csrf_token($_POST['csrf_token'] ?? '');
 
 $action = $_POST['action'] ?? '';
 
@@ -27,8 +36,8 @@ if ($action == 'update') {
     $sql = "UPDATE services SET service_name=?, price=? WHERE id=?";
     $stmt = $pdo->prepare($sql);
     $result = $stmt->execute([
-        $_POST['service_name'], 
-        $_POST['price'], 
+        $_POST['service_name'],
+        $_POST['price'],
         $_POST['id']
     ]);
     echo json_encode(['status' => $result ? 'success' : 'error']);

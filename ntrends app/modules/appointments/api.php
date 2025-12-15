@@ -1,8 +1,18 @@
 <?php
 // modules/appointments/api.php
+require '../../config/security.php';
 require '../../config/db.php';
 
 header('Content-Type: application/json');
+
+// 1. Security Checks
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+    exit;
+}
+
+verify_csrf_token($_POST['csrf_token'] ?? '');
 
 $action = $_POST['action'] ?? '';
 
@@ -19,15 +29,15 @@ if ($action == 'fetch_dropdowns') {
 // --- NEW: Filter Services by Price ---
 if ($action == 'search_services_by_price') {
     $price = $_POST['price'] ?? '';
-    
+
     // We use LIKE so if you type "5", it shows 50, 500, etc.
     // If you want exact match only, change LIKE to =
-    $searchTerm = "$price%"; 
+    $searchTerm = "$price%";
 
     $sql = "SELECT id, service_name, price FROM services WHERE price LIKE ? ORDER BY service_name ASC";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$searchTerm]);
-    
+
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     exit;
 }
@@ -94,7 +104,7 @@ if ($action == 'create_multi' || $action == 'save_appointment') {
 
     // 3. SECURE: Get Phone (Numbers only)
     $phoneRaw = $_POST['client_phone'] ?? '';
-    $phone = preg_replace('/[^0-9]/', '', $phoneRaw); 
+    $phone = preg_replace('/[^0-9]/', '', $phoneRaw);
 
     // 4. Get Date & Time
     $date = $_POST['appointment_date'];
@@ -121,14 +131,20 @@ if ($action == 'create_multi' || $action == 'save_appointment') {
 
     foreach ($services as $svc) {
         $result = $stmt->execute([
-            $date, $time, $_POST['client_name'], $phone, 
-            $_POST['gender'], $_POST['client_type'], 
-            $svc['employee_id'], $svc['service_id'],
+            $date,
+            $time,
+            $_POST['client_name'],
+            $phone,
+            $_POST['gender'],
+            $_POST['client_type'],
+            $svc['employee_id'],
+            $svc['service_id'],
             $discount
         ]);
-        if ($result) $successCount++;
+        if ($result)
+            $successCount++;
     }
-    
+
     echo json_encode(['status' => ($successCount > 0) ? 'success' : 'error']);
     exit;
 }
@@ -138,7 +154,9 @@ if ($action == 'move_to_billing') {
     $stmt = $pdo->prepare($sql);
     if ($stmt->execute([$_POST['client_phone'], $_POST['appointment_date'], $_POST['appointment_time']])) {
         echo json_encode(['status' => 'success']);
-    } else { echo json_encode(['status' => 'error']); }
+    } else {
+        echo json_encode(['status' => 'error']);
+    }
     exit;
 }
 
@@ -206,7 +224,7 @@ if ($action == 'fetch_client_history') {
                 GROUP BY a.appointment_date, a.appointment_time
                 ORDER BY a.appointment_date DESC, a.appointment_time DESC
                 LIMIT 1";
-    
+
     $stmtLast = $pdo->prepare($sqlLast);
     $stmtLast->execute([$phone]);
     $lastVisit = $stmtLast->fetch(PDO::FETCH_ASSOC);

@@ -5,8 +5,10 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 ?>
+<script>const CSRF_TOKEN = "<?php echo $_SESSION['csrf_token']; ?>";</script>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,13 +17,14 @@ if (!isset($_SESSION['user_id'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
+
 <body>
 
     <?php include '../../layout/sidebar.php'; ?>
 
     <div id="page-content-wrapper">
         <div class="container-fluid px-4 pt-4">
-            
+
             <h4 class="mb-4 text-dark fw-bold"><i class="fas fa-file-invoice-dollar me-2"></i>Billing Queue</h4>
 
             <div class="card shadow-sm mb-4">
@@ -63,4 +66,5 @@ if (!isset($_SESSION['user_id'])) {
     <script src="script.js"></script>
 
 </body>
+
 </html>

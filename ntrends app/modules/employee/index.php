@@ -7,32 +7,35 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 ?>
+<script>const CSRF_TOKEN = "<?php echo $_SESSION['csrf_token']; ?>";</script>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Management</title>
-    
+
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    
+
     <!-- GLOBAL & SIDEBAR CSS -->
     <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
+
 <body>
 
     <!-- 1. INCLUDE SIDEBAR HTML -->
     <?php include '../../layout/sidebar.php'; ?>
-    
+
 
     <!-- 2. MAIN CONTENT WRAPPER -->
     <div id="page-content-wrapper">
-        
+
         <!-- Navbar with Toggle Button -->
-        
+
 
         <!-- Page Content -->
         <div class="container-fluid p-4">
@@ -123,12 +126,13 @@ if (!isset($_SESSION['user_id'])) {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
+
     <!-- FIX 1: Point to the correct folder (../../) for the sidebar logic -->
     <script src="../../assets/js/sidebar.js"></script>
-    
+
     <!-- FIX 2: Keep the employee logic in its own file -->
     <script src="script.js"></script>
 
 </body>
+
 </html>

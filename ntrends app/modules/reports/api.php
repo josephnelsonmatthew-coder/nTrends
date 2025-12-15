@@ -1,6 +1,16 @@
-<?php
+<?// modules/reports/api.php
+require '../../config/security.php';
 require '../../config/db.php';
+
 header('Content-Type: application/json');
+
+// Security Checks
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+    exit;
+}
+verify_csrf_token($_POST['csrf_token'] ?? '');
 
 $action = $_POST['action'] ?? '';
 

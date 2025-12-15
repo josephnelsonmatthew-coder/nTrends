@@ -1,10 +1,15 @@
-$(document).ready(function() {
+// Global AJAX Setup for CSRF
+$.ajaxSetup({
+    headers: { 'X-CSRF-Token': CSRF_TOKEN }
+});
+
+$(document).ready(function () {
     loadInventory();
 
     // Handle Form Submit
-    $('#inventoryForm').submit(function(e) {
+    $('#inventoryForm').submit(function (e) {
         e.preventDefault();
-        
+
         let $btn = $('#submitBtn');
         let originalText = $btn.text();
         $btn.prop('disabled', true).text('Saving...');
@@ -14,8 +19,8 @@ $(document).ready(function() {
             type: 'POST',
             data: $(this).serialize(),
             dataType: 'json',
-            success: function(res) {
-                if(res.status === 'success') {
+            success: function (res) {
+                if (res.status === 'success') {
                     $('#inventoryModal').modal('hide');
                     loadInventory();
                     Swal.fire('Success', 'Inventory updated successfully!', 'success');
@@ -23,10 +28,10 @@ $(document).ready(function() {
                     Swal.fire('Error', 'Operation failed.', 'error');
                 }
             },
-            error: function() {
+            error: function () {
                 Swal.fire('Error', 'Server connection failed.', 'error');
             },
-            complete: function() {
+            complete: function () {
                 $btn.prop('disabled', false).text(originalText);
             }
         });
@@ -35,10 +40,10 @@ $(document).ready(function() {
 
 // Load Inventory Data
 function loadInventory() {
-    $.post('api.php', { action: 'fetch' }, function(data) {
+    $.post('api.php', { action: 'fetch' }, function (data) {
         let rows = '';
-        data.forEach(function(item) {
-            
+        data.forEach(function (item) {
+
             // Optional: Color code low stock (Red if less than 5)
             let stockClass = item.quantity < 5 ? 'text-danger fw-bold' : '';
 
@@ -59,7 +64,10 @@ function loadInventory() {
             `;
         });
         $('#inventoryTableBody').html(rows);
-    }, 'json');
+    }, 'json').fail(function (xhr) {
+        console.error('Failed to load inventory:', xhr.responseText);
+        Swal.fire('Error', 'Failed to load inventory. Please refresh.', 'error');
+    });
 }
 
 // Open Modal for New Entry
@@ -78,7 +86,7 @@ function editProduct(item) {
     $('#prodName').val(item.product_name);
     $('#prodQty').val(item.quantity);
     $('#prodPrice').val(item.price);
-    
+
     $('#formAction').val('update');
     $('#modalTitle').text('Edit Product');
     $('#submitBtn').text('Update Product').removeClass('btn-success').addClass('btn-warning');
@@ -96,8 +104,8 @@ function deleteProduct(id) {
         confirmButtonText: 'Yes, delete it!'
     }).then((result) => {
         if (result.isConfirmed) {
-            $.post('api.php', { action: 'delete', id: id }, function(res) {
-                if(res.status === 'success') {
+            $.post('api.php', { action: 'delete', id: id }, function (res) {
+                if (res.status === 'success') {
                     loadInventory();
                     Swal.fire('Deleted!', 'Product removed.', 'success');
                 } else {

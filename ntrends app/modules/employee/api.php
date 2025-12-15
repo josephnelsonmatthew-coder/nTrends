@@ -1,8 +1,17 @@
 <?php
 // modules/employee/api.php
-require '../../config/db.php'; // Adjust path to config
+require '../../config/security.php';
+require '../../config/db.php'; // Connection to database
 
 header('Content-Type: application/json');
+
+// Security Checks
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+    exit;
+}
+verify_csrf_token($_POST['csrf_token'] ?? '');
 
 $action = $_POST['action'] ?? '';
 

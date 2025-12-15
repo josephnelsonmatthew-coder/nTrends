@@ -33,6 +33,11 @@ $('#btnServiceReport').click(function () {
 // ================================
 // LOAD EMPLOYEES DROPDOWN
 // ================================
+// Global AJAX Setup for CSRF
+$.ajaxSetup({
+    headers: { 'X-CSRF-Token': CSRF_TOKEN }
+});
+
 $(document).ready(function () {
 
     $.post('../appointments/api.php', { action: 'fetch_dropdowns' }, function (res) {
@@ -53,8 +58,9 @@ $(document).ready(function () {
         });
 
     }, 'json')
-    .fail(function (xhr) {
-        console.error('Employee fetch failed:', xhr.responseText);
-    });
+        .fail(function (xhr) {
+            console.error('Employee fetch failed:', xhr.responseText);
+            Swal.fire('Error', 'Failed to load employees for report.', 'error');
+        });
 
 });

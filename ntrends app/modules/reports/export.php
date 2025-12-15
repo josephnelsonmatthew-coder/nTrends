@@ -1,9 +1,14 @@
 <?php
 // modules/reports/export.php
+require '../../config/security.php';
 require '../../config/db.php';
 
+if (!isset($_SESSION['user_id'])) {
+    die("Unauthorized Access");
+}
+
 // Get report type
-$type = $_GET['type'] ?? '';
+$type = $_GET['type'] ?? 'client';
 $type = in_array($type, ['employee', 'service']) ? $type : 'employee';
 
 // Excel headers

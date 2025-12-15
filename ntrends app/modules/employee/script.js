@@ -1,18 +1,23 @@
-$(document).ready(function() {
+// Global AJAX Setup for CSRF
+$.ajaxSetup({
+    headers: { 'X-CSRF-Token': CSRF_TOKEN }
+});
+
+$(document).ready(function () {
     // Initial Load
     loadEmployees();
 
     // Handle Form Submit (Create/Update)
-    $('#employeeForm').submit(function(e) {
+    $('#employeeForm').submit(function (e) {
         e.preventDefault();
-        
+
         $.ajax({
             url: 'api.php',
             type: 'POST',
             data: $(this).serialize(),
             dataType: 'json',
-            success: function(res) {
-                if(res.status === 'success') {
+            success: function (res) {
+                if (res.status === 'success') {
                     $('#employeeModal').modal('hide');
                     loadEmployees();
                     Swal.fire('Success', 'Operation completed successfully!', 'success');
@@ -20,7 +25,7 @@ $(document).ready(function() {
                     Swal.fire('Error', 'Operation failed.', 'error');
                 }
             },
-            error: function() {
+            error: function () {
                 Swal.fire('Error', 'Server connection failed.', 'error');
             }
         });
@@ -29,11 +34,11 @@ $(document).ready(function() {
 
 // Fetch Employees via AJAX
 function loadEmployees() {
-    $.post('api.php', { action: 'fetch' }, function(data) {
+    $.post('api.php', { action: 'fetch' }, function (data) {
         let rows = '';
-        data.forEach(function(emp) {
-            let badge = emp.status === 'Active' 
-                ? '<span class="badge bg-success">Active</span>' 
+        data.forEach(function (emp) {
+            let badge = emp.status === 'Active'
+                ? '<span class="badge bg-success">Active</span>'
                 : '<span class="badge bg-secondary">Inactive</span>';
 
             rows += `
@@ -55,7 +60,10 @@ function loadEmployees() {
             `;
         });
         $('#employeeTableBody').html(rows);
-    }, 'json');
+    }, 'json').fail(function (xhr) {
+        console.error('Failed to load employees:', xhr.responseText);
+        Swal.fire('Error', 'Failed to load employees. Please refresh.', 'error');
+    });
 }
 
 // Open Modal for New Entry
@@ -75,7 +83,7 @@ function editEmployee(emp) {
     $('#phone').val(emp.phone);
     $('#role').val(emp.role);
     $('#status').val(emp.status);
-    
+
     $('#formAction').val('update');
     $('#modalTitle').text('Edit Employee');
     $('#submitBtn').text('Update Employee').removeClass('btn-success').addClass('btn-warning');
@@ -93,8 +101,8 @@ function deleteEmployee(id) {
         confirmButtonText: 'Yes, delete it!'
     }).then((result) => {
         if (result.isConfirmed) {
-            $.post('api.php', { action: 'delete', id: id }, function(res) {
-                if(res.status === 'success') {
+            $.post('api.php', { action: 'delete', id: id }, function (res) {
+                if (res.status === 'success') {
                     loadEmployees();
                     Swal.fire('Deleted!', 'Employee has been removed.', 'success');
                 } else {

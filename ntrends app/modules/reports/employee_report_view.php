@@ -1,5 +1,11 @@
 <?php
+require '../../config/security.php';
 require '../../config/db.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../../login.php");
+    exit;
+}
 
 $employeeId = $_GET['employee_id'] ?? '';
 
@@ -27,32 +33,35 @@ $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Employee Report</title>
     <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
+
 <body class="p-4">
 
-<h3>Employee Report</h3>
+    <h3>Employee Report</h3>
 
-<table border="1" cellpadding="8" cellspacing="0" width="100%">
-    <thead>
-        <tr>
-            <th>Employee</th>
-            <th>Total Services</th>
-            <th>Total Revenue</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php foreach ($data as $row): ?>
+    <table border="1" cellpadding="8" cellspacing="0" width="100%">
+        <thead>
             <tr>
-                <td><?= htmlspecialchars($row['employee_name']) ?></td>
-                <td><?= $row['total_services'] ?></td>
-                <td>₹<?= number_format($row['total_revenue'], 2) ?></td>
+                <th>Employee</th>
+                <th>Total Services</th>
+                <th>Total Revenue</th>
             </tr>
-        <?php endforeach; ?>
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+            <?php foreach ($data as $row): ?>
+                <tr>
+                    <td><?= htmlspecialchars($row['employee_name']) ?></td>
+                    <td><?= $row['total_services'] ?></td>
+                    <td>₹<?= number_format($row['total_revenue'], 2) ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
 
 </body>
+
 </html>

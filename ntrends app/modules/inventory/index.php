@@ -7,8 +7,10 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 ?>
+<script>const CSRF_TOKEN = "<?php echo $_SESSION['csrf_token']; ?>";</script>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,12 +19,13 @@ if (!isset($_SESSION['user_id'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
+
 <body>
 
     <?php include '../../layout/sidebar.php'; ?>
 
     <div id="page-content-wrapper">
-        
+
 
         <div class="container-fluid p-4">
             <div class="card shadow-sm">
@@ -45,7 +48,7 @@ if (!isset($_SESSION['user_id'])) {
                                 </tr>
                             </thead>
                             <tbody id="inventoryTableBody">
-                                </tbody>
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -67,17 +70,20 @@ if (!isset($_SESSION['user_id'])) {
 
                         <div class="mb-3">
                             <label class="form-label">Product Name</label>
-                            <input type="text" class="form-control" name="product_name" id="prodName" required placeholder="e.g. Shampoo Bottle 500ml">
+                            <input type="text" class="form-control" name="product_name" id="prodName" required
+                                placeholder="e.g. Shampoo Bottle 500ml">
                         </div>
 
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Quantity</label>
-                                <input type="number" class="form-control" name="quantity" id="prodQty" required placeholder="0">
+                                <input type="number" class="form-control" name="quantity" id="prodQty" required
+                                    placeholder="0">
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Price per Unit</label>
-                                <input type="number" step="0.01" class="form-control" name="price" id="prodPrice" required placeholder="0.00">
+                                <input type="number" step="0.01" class="form-control" name="price" id="prodPrice"
+                                    required placeholder="0.00">
                             </div>
                         </div>
 
@@ -97,4 +103,5 @@ if (!isset($_SESSION['user_id'])) {
     <script src="script.js"></script>
 
 </body>
+
 </html>

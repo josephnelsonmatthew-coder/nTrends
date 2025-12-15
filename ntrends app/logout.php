@@ -1,9 +1,15 @@
 <?php
-session_start();
-session_unset();
-session_destroy();
+require 'config/security.php';
 
-// Redirect to login page (change 'login.php' if your file is named differently)
-header("Location: login.php"); 
-exit;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf_token($_POST['csrf_token'] ?? '');
+    session_unset();
+    session_destroy();
+    header("Location: login.php");
+    exit;
+} else {
+    // If GET request, redirect to dashboard or show error (prevent logout via link)
+    header("Location: modules/appointments/index.php");
+    exit;
+}
 ?>

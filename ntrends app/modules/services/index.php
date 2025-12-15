@@ -7,8 +7,10 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 ?>
+<script>const CSRF_TOKEN = "<?php echo $_SESSION['csrf_token']; ?>";</script>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,12 +19,13 @@ if (!isset($_SESSION['user_id'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../../assets/css/style.css">
 </head>
+
 <body>
 
     <?php include '../../layout/sidebar.php'; ?>
 
     <div id="page-content-wrapper">
-        
+
 
         <div class="container-fluid p-4">
             <div class="card shadow-sm">
@@ -44,7 +47,7 @@ if (!isset($_SESSION['user_id'])) {
                                 </tr>
                             </thead>
                             <tbody id="serviceTableBody">
-                                </tbody>
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -66,12 +69,14 @@ if (!isset($_SESSION['user_id'])) {
 
                         <div class="mb-3">
                             <label class="form-label">Service Name</label>
-                            <input type="text" class="form-control" name="service_name" id="serviceName" required placeholder="e.g. Haircut">
+                            <input type="text" class="form-control" name="service_name" id="serviceName" required
+                                placeholder="e.g. Haircut">
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label">Price</label>
-                            <input type="number" step="0.01" class="form-control" name="price" id="servicePrice" required placeholder="0.00">
+                            <input type="number" step="0.01" class="form-control" name="price" id="servicePrice"
+                                required placeholder="0.00">
                         </div>
 
                         <div class="d-grid mt-4">
@@ -90,4 +95,5 @@ if (!isset($_SESSION['user_id'])) {
     <script src="script.js"></script>
 
 </body>
+
 </html>

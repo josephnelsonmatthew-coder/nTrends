@@ -1,37 +1,42 @@
 // modules/appointments/script.js
 
 let allAppointments = [];
-let selectedCustomerData = null; 
-let serviceOptionsHTML = ''; 
+let selectedCustomerData = null;
+let serviceOptionsHTML = '';
 let employeeOptionsHTML = '';
-let editingState = null;        
-let tempBookingTime = '';       
+let editingState = null;
+let tempBookingTime = '';
 
-$(document).ready(function() {
+// Global AJAX Setup for CSRF
+$.ajaxSetup({
+    headers: { 'X-CSRF-Token': CSRF_TOKEN }
+});
+
+$(document).ready(function () {
     // 1. Initial Load
     let today = $('#dateFilter').val();
     loadDashboardAndTable(today);
-    loadDropdownData(); 
+    loadDropdownData();
 
     // 2. Date Filter
-    $('#dateFilter').on('change', function() {
+    $('#dateFilter').on('change', function () {
         loadDashboardAndTable($(this).val());
     });
 
-    $('#clientPhone').on('input', function() {
+    $('#clientPhone').on('input', function () {
         this.value = this.value.replace(/[^0-9]/g, '');
     });
 
     // 3. EDIT SERVICES (Yellow Button)
-    $(document).on('click', '.view-bill-btn', function() {
-        let id = $(this).data('id'); 
+    $(document).on('click', '.view-bill-btn', function () {
+        let id = $(this).data('id');
         let apptData = allAppointments.find(a => a.id == id);
         if (apptData) viewBilling(apptData);
     });
 
     // 4. EDIT DETAILS (Blue Button)
-    $(document).on('click', '.edit-btn', function() {
-        let id = $(this).data('id'); 
+    $(document).on('click', '.edit-btn', function () {
+        let id = $(this).data('id');
         let apptData = allAppointments.find(a => a.id == id);
         if (apptData) editAppt(apptData);
     });
@@ -39,7 +44,7 @@ $(document).ready(function() {
     // =========================================================
     // 5. MOVE TO BILL (Indigo Button) -> OPENS CHECKOUT MODAL
     // =========================================================
-    $(document).on('click', '.move-bill-btn', function() {
+    $(document).on('click', '.move-bill-btn', function () {
         // Get data from button data-attributes
         const name = $(this).data('name');
         const phone = $(this).data('phone');
@@ -53,9 +58,9 @@ $(document).ready(function() {
         $('#payModalName').text(name);
         $('#payModalServices').html(services.replace(/<br>/g, ', '));
         $('#payModalTotal').text('₹' + netTotal.toFixed(2));
-        
+
         // Show discount badge if applicable
-        if(discount > 0) {
+        if (discount > 0) {
             $('#payModalDiscount').text('Discount Applied: ' + discount + '%').show();
         } else {
             $('#payModalDiscount').hide();
@@ -74,20 +79,20 @@ $(document).ready(function() {
     });
 
     // 6. CONFIRM PAYMENT CLICK (Inside Modal)
-    $('#btnConfirmPayment').click(function() {
+    $('#btnConfirmPayment').click(function () {
         const $btn = $(this);
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
 
         const paymentMethod = $('input[name="payMethod"]:checked').val();
-        
+
         $.post('api.php', {
             action: 'move_to_billing',
             client_phone: $('#payHiddenPhone').val(),
             appointment_date: $('#payHiddenDate').val(),
             appointment_time: $('#payHiddenTime').val(),
             payment_method: paymentMethod // Send chosen method
-        }, function(res) {
-            if(res.status === 'success') {
+        }, function (res) {
+            if (res.status === 'success') {
                 $('#checkoutModal').modal('hide');
                 loadDashboardAndTable($('#dateFilter').val());
                 Swal.fire({ icon: 'success', title: 'Payment Successful!', text: 'Moved to Billing History.', timer: 1500, showConfirmButton: false });
@@ -100,22 +105,22 @@ $(document).ready(function() {
     });
 
     // 7. HANDLE BOOKING FORM SUBMIT
-    $('#apptForm').submit(function(e) {
+    $('#apptForm').submit(function (e) {
         e.preventDefault();
         let action = $('#formAction').val();
 
-        if(action === 'create') {
+        if (action === 'create') {
             let name = $('#clientName').val();
             let phone = $('#clientPhone').val();
             let gender = $('#clientGender').val();
             let type = $('#clientType').val();
             let date = $('#apptDate').val();
-            let time = $('#apptTime').val(); 
+            let time = $('#apptTime').val();
 
-            if(!name || !date || !time) { Swal.fire('Error', 'Fill required fields', 'warning'); return; }
+            if (!name || !date || !time) { Swal.fire('Error', 'Fill required fields', 'warning'); return; }
 
             selectedCustomerData = { client_name: name, client_phone: phone, gender: gender, client_type: type };
-            tempBookingTime = time; 
+            tempBookingTime = time;
             editingState = null;
 
             $('#advCustName').text(name);
@@ -123,17 +128,17 @@ $(document).ready(function() {
             $('#advDate').val(date);
             $('#advDiscount').val(0); // Reset discount
             $('#serviceCartBody').html('');
-            addNewServiceRow(); 
-            if(phone) loadCustomerHistory(phone);
+            addNewServiceRow();
+            if (phone) loadCustomerHistory(phone);
 
-            $('#apptModal').modal('hide'); 
-            openBillingView(); 
-        } 
+            $('#apptModal').modal('hide');
+            openBillingView();
+        }
         else {
             // Update Existing Details
             $.ajax({
                 url: 'api.php', type: 'POST', data: $(this).serialize(), dataType: 'json',
-                success: function(res) {
+                success: function (res) {
                     $('#apptModal').modal('hide');
                     loadDashboardAndTable($('#dateFilter').val());
                     Swal.fire('Success', 'Updated!', 'success');
@@ -143,10 +148,10 @@ $(document).ready(function() {
     });
 
     // Search Logic
-    $('#customerSearchInput').on('keyup', function() {
+    $('#customerSearchInput').on('keyup', function () {
         let query = $(this).val();
         if (query.length < 2) { $('#suggestionsList').addClass('d-none'); return; }
-        $.post('api.php', { action: 'search_clients', query: query }, function(data) {
+        $.post('api.php', { action: 'search_clients', query: query }, function (data) {
             let html = '';
             if (data.length > 0) {
                 data.forEach(client => {
@@ -160,23 +165,23 @@ $(document).ready(function() {
         }, 'json');
     });
 
-    $(document).on('click', function(e) {
+    $(document).on('click', function (e) {
         if (!$(e.target).closest('#customerSearchInput, #suggestionsList').length) {
             $('#suggestionsList').addClass('d-none');
         }
     });
 
-    $('#btnContinueToBook').on('click', function() {
+    $('#btnContinueToBook').on('click', function () {
         if (!selectedCustomerData) return;
-        editingState = null; 
+        editingState = null;
         tempBookingTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
         $('#advCustName').text(selectedCustomerData.client_name);
         $('#advCustPhone').text(selectedCustomerData.client_phone);
-        $('#advDiscount').val(0); 
+        $('#advDiscount').val(0);
         loadCustomerHistory(selectedCustomerData.client_phone);
-        $('#serviceCartBody').html(''); 
+        $('#serviceCartBody').html('');
         addNewServiceRow();
-        openBillingView(); 
+        openBillingView();
     });
 });
 
@@ -186,21 +191,21 @@ $(document).ready(function() {
 
 function loadDashboardAndTable(date) {
     // 1. Fetch Stats
-    $.post('api.php', { action: 'fetch_counts', date_filter: date }, function(data) {
+    $.post('api.php', { action: 'fetch_counts', date_filter: date }, function (data) {
         $('#countOpen').text(data.open_count);
         $('#countClosed').text(data.closed_count);
-        $('#countRevenue').text('₹' + (parseFloat(data.total_revenue)||0).toFixed(2));
+        $('#countRevenue').text('₹' + (parseFloat(data.total_revenue) || 0).toFixed(2));
     }, 'json');
 
     // 2. Fetch Table
-    $.post('api.php', { action: 'fetch_by_date', date_filter: date }, function(data) {
+    $.post('api.php', { action: 'fetch_by_date', date_filter: date }, function (data) {
         allAppointments = data;
         let rows = '';
 
-        if(data.length === 0) {
-             rows = '<tr><td colspan="8" class="text-center text-muted py-4">No appointments found.</td></tr>';
+        if (data.length === 0) {
+            rows = '<tr><td colspan="8" class="text-center text-muted py-4">No appointments found.</td></tr>';
         } else {
-            data.forEach(function(appt) {
+            data.forEach(function (appt) {
                 // Status Badge
                 let statusBadge = '';
                 if (appt.status === 'Scheduled') statusBadge = '<span class="badge bg-primary">Scheduled</span>';
@@ -215,7 +220,7 @@ function loadDashboardAndTable(date) {
 
                 // --- PRICE DISPLAY HTML ---
                 let priceHTML = '';
-                if(discountPercent > 0) {
+                if (discountPercent > 0) {
                     // Show Discounted View
                     priceHTML = `
                         <div class="d-flex flex-column">
@@ -234,7 +239,7 @@ function loadDashboardAndTable(date) {
                 let phoneSafe = appt.client_phone || '';
                 let dateSafe = appt.appointment_date;
                 let timeSafe = appt.appointment_time;
-                let formattedTime = new Date('1970-01-01T' + timeSafe).toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', hour12: true });
+                let formattedTime = new Date('1970-01-01T' + timeSafe).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
                 // Actions Logic
                 let actionsColumnContent = '';
@@ -279,18 +284,23 @@ function loadDashboardAndTable(date) {
             });
         }
         $('#apptTableBody').html(rows);
-    }, 'json');
+    }, 'json').fail(function (xhr) {
+        console.error('Failed to load appointments:', xhr.responseText);
+        Swal.fire('Error', 'Failed to load appointments. Please refresh.', 'error');
+    });
 }
 
 function loadDropdownData() {
-    $.post('api.php', { action: 'fetch_dropdowns' }, function(data) {
+    $.post('api.php', { action: 'fetch_dropdowns' }, function (data) {
         employeeOptionsHTML = '<option value="">Select Staff</option>';
         data.employees.forEach(e => { employeeOptionsHTML += `<option value="${e.id}">${e.name}</option>`; });
         serviceOptionsHTML = '<option value="" data-price="0">Select Service</option>';
         data.services.forEach(s => { serviceOptionsHTML += `<option value="${s.id}" data-price="${s.price}">${s.service_name}</option>`; });
         $('#employeeSelect').html(employeeOptionsHTML);
         $('#serviceSelect').html(serviceOptionsHTML);
-    }, 'json');
+    }, 'json').fail(function (xhr) {
+        console.error('Failed to load dropdowns:', xhr.responseText);
+    });
 }
 
 function openModalForNew() {
@@ -298,7 +308,7 @@ function openModalForNew() {
     let typedValue = $('#customerSearchInput').val().trim();
 
     // 2. Standard Reset (hides search, clears form)
-    resetSearch(); 
+    resetSearch();
     $('#customerSearchSection').slideUp();
     $('#apptForm')[0].reset();
     $('#apptId').val('');
@@ -348,7 +358,7 @@ function deleteGroupAppt(phone, date, time) {
         showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Yes, delete all!'
     }).then((result) => {
         if (result.isConfirmed) {
-            $.post('api.php', { action: 'delete_group', phone: phone, date: date, time: time }, function(res) {
+            $.post('api.php', { action: 'delete_group', phone: phone, date: date, time: time }, function (res) {
                 loadDashboardAndTable($('#dateFilter').val());
                 Swal.fire('Deleted!', '', 'success');
             }, 'json');
@@ -377,7 +387,7 @@ function loadCustomerHistory(phone) {
     $('#clientInsightsBody').html('<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Checking records...</div>');
 
     // 2. Fetch Data
-    $.post('api.php', { action: 'fetch_client_history', client_phone: phone }, function(data) {
+    $.post('api.php', { action: 'fetch_client_history', client_phone: phone }, function (data) {
         let stats = data.stats;
         let last = data.last_visit;
 
@@ -398,7 +408,7 @@ function loadCustomerHistory(phone) {
                 </div>`;
         } else {
             // CASE: RETURNING CLIENT
-            
+
             // Calculate previous bill totals
             let gross = parseFloat(last.gross_total || 0);
             let discPerc = parseInt(last.discount_percent || 0);
@@ -452,7 +462,7 @@ function addNewServiceRow() {
     $('#serviceCartBody').append(row);
 }
 function addServiceRowWithData(item) {
-    let rowId = Date.now() + Math.floor(Math.random() * 1000); 
+    let rowId = Date.now() + Math.floor(Math.random() * 1000);
     let price = parseFloat(item.price) || 0;
     let row = `<tr id="row_${rowId}">
             <td><select class="form-select form-select-sm emp-select">${employeeOptionsHTML}</select></td>
@@ -470,8 +480,8 @@ function addServiceRowWithData(item) {
 function updateRowPrice(rowId, selectEl) {
     let price = $(selectEl).find(':selected').data('price');
     let row = $('#row_' + rowId);
-    row.find('.price-input').val(parseFloat(price||0).toFixed(2));
-    row.find('.total-input').val(parseFloat(price||0).toFixed(2));
+    row.find('.price-input').val(parseFloat(price || 0).toFixed(2));
+    row.find('.total-input').val(parseFloat(price || 0).toFixed(2));
     calculateGrandTotal();
 }
 function calculateRowTotal(rowId) {
@@ -485,8 +495,8 @@ function calculateRowTotal(rowId) {
 
 function calculateGrandTotal() {
     let subTotal = 0;
-    $('#serviceCartBody tr').each(function() { 
-        subTotal += parseFloat($(this).find('.total-input').val()) || 0; 
+    $('#serviceCartBody tr').each(function () {
+        subTotal += parseFloat($(this).find('.total-input').val()) || 0;
     });
 
     // Get Discount Percent
@@ -496,9 +506,9 @@ function calculateGrandTotal() {
 
     // Update Header
     $('#headerNet').text('₹' + finalTotal.toFixed(2));
-    
+
     // Show/Hide Original Price (Strike-through)
-    if(discPercent > 0) {
+    if (discPercent > 0) {
         $('#headerGross').text('₹' + subTotal.toFixed(2)).show();
     } else {
         $('#headerGross').hide();
@@ -507,13 +517,13 @@ function calculateGrandTotal() {
 
 function saveAdvancedBooking() {
     let services = [];
-    $('#serviceCartBody tr').each(function() {
+    $('#serviceCartBody tr').each(function () {
         let empId = $(this).find('.emp-select').val();
         let svcId = $(this).find('.svc-select').val();
-        if(empId && svcId) services.push({ employee_id: empId, service_id: svcId });
+        if (empId && svcId) services.push({ employee_id: empId, service_id: svcId });
     });
 
-    if(services.length === 0) { Swal.fire('Error', 'Please add services', 'warning'); return; }
+    if (services.length === 0) { Swal.fire('Error', 'Please add services', 'warning'); return; }
 
     let $btn = $('#btnSaveBooking');
     $btn.prop('disabled', true).text('Saving...');
@@ -525,7 +535,7 @@ function saveAdvancedBooking() {
         gender: selectedCustomerData.gender,
         client_type: selectedCustomerData.client_type,
         appointment_date: $('#advDate').val(),
-        appointment_time: tempBookingTime, 
+        appointment_time: tempBookingTime,
         discount_percent: $('#advDiscount').val(), // Save Discount
         services: services
     };
@@ -536,10 +546,10 @@ function saveAdvancedBooking() {
         payload.original_phone = editingState.original_phone;
     }
 
-    $.post('api.php', payload, function(res) {
+    $.post('api.php', payload, function (res) {
         $btn.prop('disabled', false).html('<i class="fas fa-save me-2"></i> Save Changes');
-        if(res.status === 'success') {
-            closeBillingView(); 
+        if (res.status === 'success') {
+            closeBillingView();
             $('#customerSearchSection').slideUp();
             loadDashboardAndTable($('#dateFilter').val());
             Swal.fire('Success', 'Saved!', 'success');
@@ -555,14 +565,14 @@ function viewBilling(appt) {
     tempBookingTime = appt.appointment_time;
     selectedCustomerData = { client_name: appt.client_name, client_phone: appt.client_phone, gender: appt.gender, client_type: appt.client_type };
     $('#serviceCartBody').html('');
-    
-    $.post('api.php', { action: 'fetch_group_details', date: appt.appointment_date, time: appt.appointment_time, phone: appt.client_phone }, function(data) {
+
+    $.post('api.php', { action: 'fetch_group_details', date: appt.appointment_date, time: appt.appointment_time, phone: appt.client_phone }, function (data) {
         let items = data.items;
         $('#advDiscount').val(data.discount || 0); // Load saved discount
-        items.forEach(function(item) { addServiceRowWithData(item); });
+        items.forEach(function (item) { addServiceRowWithData(item); });
         calculateGrandTotal();
     }, 'json');
-    
+
     loadCustomerHistory(appt.client_phone);
     openBillingView();
 }
@@ -614,22 +624,22 @@ $(document).on('input', '.price-input', debounce(function () {
         } else {
             // Populate dropdown with filtered services
             $svcDropdown.append('<option value="">Select Service (Found ' + data.length + ')</option>');
-            
+
             data.forEach(s => {
                 const dprice = s.price ? parseFloat(s.price).toFixed(2) : '0.00';
                 // Note: We include the price in the text so user confirms it matches
                 $svcDropdown.append(`<option value="${s.id}" data-price="${dprice}">${s.service_name} - ₹${dprice}</option>`);
             });
         }
-        
+
         // If Select2 is active, refresh it
         if ($svcDropdown.hasClass('select2-hidden-accessible')) {
             $svcDropdown.trigger('change'); // Updates Select2 UI
         }
     }, 'json')
-    .fail(function () {
-        $svcDropdown.html('<option value="">Error fetching services</option>');
-    });
+        .fail(function () {
+            $svcDropdown.html('<option value="">Error fetching services</option>');
+        });
 
 }, 300)); // 300ms delay
 
@@ -642,20 +652,20 @@ function changeDate(days) {
     // 1. Get current date from input
     let $input = $('#dateFilter');
     let currentVal = $input.val();
-    
+
     // 2. Create Date Object
     let dateObj = new Date(currentVal);
-    
+
     // 3. Add or Subtract Days
     dateObj.setDate(dateObj.getDate() + days);
-    
+
     // 4. Format back to YYYY-MM-DD
     // Note: We use .toLocaleDateString to avoid timezone issues
     let year = dateObj.getFullYear();
     let month = String(dateObj.getMonth() + 1).padStart(2, '0');
     let day = String(dateObj.getDate()).padStart(2, '0');
     let newDate = `${year}-${month}-${day}`;
-    
+
     // 5. Update Input and Trigger Change
     // This automatically calls loadDashboardAndTable because of your existing .on('change') listener
     $input.val(newDate).trigger('change');

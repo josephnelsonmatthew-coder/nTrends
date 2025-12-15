@@ -1,5 +1,5 @@
 <?php
-session_start();
+require 'config/security.php';
 // If already logged in, redirect to dashboard
 if (isset($_SESSION['user_id'])) {
     header("Location: modules/appointments/index.php");
@@ -8,6 +8,7 @@ if (isset($_SESSION['user_id'])) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,9 +17,9 @@ if (isset($_SESSION['user_id'])) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
-            
+
             font-family: 'Poppins', sans-serif;
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
 
@@ -27,19 +28,22 @@ if (isset($_SESSION['user_id'])) {
             align-items: center;
             justify-content: center;
         }
+
         .login-card {
             width: 100%;
             max-width: 400px;
             background: white;
             padding: 2.5rem;
             border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
         }
+
         .form-control {
             border-radius: 8px;
             padding: 12px;
             background-color: #f9fafb;
         }
+
         .btn-primary {
             background-color: #4f46e5;
             border: none;
@@ -48,7 +52,11 @@ if (isset($_SESSION['user_id'])) {
             font-weight: 500;
             width: 100%;
         }
-        .btn-primary:hover { background-color: #4338ca; }
+
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+
         .brand-logo {
             width: 60px;
             height: 60px;
@@ -63,6 +71,7 @@ if (isset($_SESSION['user_id'])) {
         }
     </style>
 </head>
+
 <body>
 
     <div class="login-card">
@@ -70,13 +79,14 @@ if (isset($_SESSION['user_id'])) {
         <h4 class="text-center fw-bold mb-1">Welcome Back</h4>
         <p class="text-center text-muted mb-4">Sign in to nTrends</p>
 
-        <?php if(isset($_GET['error'])): ?>
+        <?php if (isset($_GET['error'])): ?>
             <div class="alert alert-danger text-center p-2 mb-3 small">
                 <?php echo htmlspecialchars($_GET['error']); ?>
             </div>
         <?php endif; ?>
 
         <form action="auth.php" method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
             <div class="mb-3">
                 <label class="form-label small text-muted fw-bold">Username</label>
                 <input type="text" name="username" class="form-control" required placeholder="Enter username">
@@ -96,4 +106,5 @@ if (isset($_SESSION['user_id'])) {
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </body>
+
 </html>
